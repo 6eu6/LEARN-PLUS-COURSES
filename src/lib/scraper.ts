@@ -8,6 +8,56 @@ import {
   type ScraperLogEntry,
 } from './queries';
 import { createArabicTranslations } from './course-translations';
+// ============================================
+// Shared deduplication cache for all scrapers
+// ============================================
+
+// Cache for existing course URLs and titles - loaded once per scrape run
+let globalExistingUrls: Set<string> | null = null;
+let globalExistingTitles: Set<string> | null = null;
+let globalExistingSlugs: Set<string> | null = null;
+
+/**
+ * Load all existing course identifiers (URLs, titles, slugs) once and cache them.
+ * This prevents repeated database queries during a scrape run.
+ */
+export async function loadExistingCourseIdentifiers(): Promise<{
+  urls: Set<string>;
+  titles: Set<string>;
+  slugs: Set<string>;
+}> {
+  if (globalExistingUrls && globalExistingTitles && globalExistingSlugs) {
+    return { urls: globalExistingUrls, titles: globalExistingTitles, slugs: globalExistingSlugs };
+  }
+
+  console.log(`[Scraper] Loading existing course identifiers from DB...`);
+  const existingCourses = await db.course.findMany({
+    select: { udemyUrl: true, title: true, slug: true },
+  });
+
+  const urls: Set<string> = new Set(existingCourses.map(c => normalizeUdemyUrl(c.udemyUrl)));
+  const titles: Set<string> = new Set(existingCourses.map(c => normalizeTitle(c.title)));
+  const slugs: Set<string> = new Set(existingCourses.map(c => c.slug).filter((s): s is string => s !== null));
+
+  console.log(`[Scraper] Loaded ${existingCourses.length} existing courses (${urls.size} unique URLs, ${titles.size} unique titles)`);
+
+  // Cache globally for this scrape run
+  globalExistingUrls = urls;
+  globalExistingTitles = titles;
+  globalExistingSlugs = slugs;
+
+  return { urls, titles, slugs };
+}
+
+/**
+ * Clear the global cache (useful between scrape runs)
+ */
+export function clearExistingCourseIdentifiers(): void {
+  globalExistingUrls = null;
+  globalExistingTitles = null;
+  globalExistingSlugs = null;
+}
+
 
 // ============================================
 // Types
@@ -1780,12 +1830,8 @@ async function scrapeUdemyFreebies(maxPages: number = 5, skipVerification: boole
   const errors: string[] = [];
 
   try {
-    const existingCourses = await db.course.findMany({
-      select: { udemyUrl: true, title: true },
-    });
-    const existingUrls = new Set(existingCourses.map(c => normalizeUdemyUrl(c.udemyUrl)));
-    const existingTitles = new Set(existingCourses.map(c => normalizeTitle(c.title)));
-    console.log(`[Scraper/UdemyFreebies] Starting with ${existingCourses.length} existing courses in DB`);
+    const { urls: existingUrls, titles: existingTitles } = await loadExistingCourseIdentifiers();
+    console.log(`[Scraper/UdemyFreebies] Starting with ${existingUrls.size} existing URLs in cache`);
 
     console.log(`[Scraper/UdemyFreebies] Fetching ${maxPages} pages in parallel...`);
     const pagePromises = Array.from({ length: maxPages }, (_, i) =>
@@ -2370,12 +2416,8 @@ async function scrapeStudyBullet(maxPages: number = 5, skipVerification: boolean
   const errors: string[] = [];
 
   try {
-    const existingCourses = await db.course.findMany({
-      select: { udemyUrl: true, title: true },
-    });
-    const existingUrls = new Set(existingCourses.map(c => normalizeUdemyUrl(c.udemyUrl)));
-    const existingTitles = new Set(existingCourses.map(c => normalizeTitle(c.title)));
-    console.log(`[Scraper/StudyBullet] Starting with ${existingCourses.length} existing courses in DB`);
+    const { urls: existingUrls, titles: existingTitles } = await loadExistingCourseIdentifiers();
+    console.log(`[Scraper/StudyBullet] Starting with ${existingUrls.size} existing URLs in cache`);
 
     // Fetch listing pages sequentially (each page gives ~21 courses)
     console.log(`[Scraper/StudyBullet] Fetching up to ${maxPages} listing pages...`);
@@ -2558,6 +2600,9 @@ export async function runFullScrape(
   };
 
   const pages = Math.min(Math.max(opts.pages, 1), 20);
+
+  // Clear existing course identifiers cache for fresh scrape run
+  clearExistingCourseIdentifiers();
 
   // Fresh Cloudflare circuit state per run.
   resetUdemyCircuit();
@@ -2774,11 +2819,7 @@ export async function scrapeSourcePage(
   };
 
   try {
-    const existingCourses = await db.course.findMany({
-      select: { udemyUrl: true, title: true },
-    });
-    const existingUrls = new Set(existingCourses.map((c) => normalizeUdemyUrl(c.udemyUrl)));
-    const existingTitles = new Set(existingCourses.map((c) => normalizeTitle(c.title)));
+    const { urls: existingUrls, titles: existingTitles } = await loadExistingCourseIdentifiers();
 
     if (source === 'udemyfreebies') {
       const { courses } = await fetchUdemyFreebiesListingPage(page);

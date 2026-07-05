@@ -168,25 +168,179 @@ export async function createCourseDirect(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Bulk create for multiple courses - optimized for scraper
+// Uses createMany for better performance (single query instead of N queries)
+// ---------------------------------------------------------------------------
+
+export interface BulkCourseCreateInput {
+  title: string;
+  slug: string;
+  description?: string;
+  instructor?: string;
+  category?: string;
+  imageUrl?: string;
+  udemyUrl: string;
+  source: string;
+  rating?: number | null;
+  studentsCount?: number | null;
+  originalPrice?: string | null;
+  language?: string | null;
+  duration?: string | null;
+  requirements?: string;
+  whoFor?: string;
+  whatLearn?: string;
+  lastUpdated?: string | null;
+  couponCode?: string;
+  couponUrl?: string;
+  couponExpiresAt?: Date | null;
+  isFreeForever?: boolean;
+  couponVerified?: boolean;
+  sourceDetail?: string;
+  scrapeRunId?: string;
+  isPublished?: boolean;
+}
+
+export async function createCoursesBulk(
+  courses: BulkCourseCreateInput[],
+  scrapeRunId?: string
+): Promise<{ createdCount: number; duplicates: number }> {
+  if (courses.length === 0) {
+    return { createdCount: 0, duplicates: 0 };
+  }
+
+  // Add scrapeRunId to all courses if provided
+  const coursesWithRunId = courses.map(course => ({
+    ...course,
+    scrapeRunId: course.scrapeRunId || scrapeRunId,
+    couponCode: course.couponCode ?? '',
+    couponUrl: course.couponUrl ?? '',
+    isPublished: course.isPublished !== undefined ? course.isPublished : true,
+  }));
+
+  try {
+    // Use createMany for bulk insert - much more efficient than individual creates
+    const result = await db.course.createMany({
+      data: coursesWithRunId,
+      skipDuplicates: true, // Skip duplicates based on unique constraints (udemyUrl, slug)
+    });
+
+    return {
+      createdCount: result.count,
+      duplicates: courses.length - result.count,
+    };
+  } catch (err: unknown) {
+    const e = err as { code?: string; message?: string };
+    console.error('[Bulk Create] Error:', e);
+    
+    // Fallback: create courses one by one if bulk fails
+    // This handles cases where createMany is not supported or has issues
+    let createdCount = 0;
+    let duplicates = 0;
+    
+    for (const course of coursesWithRunId) {
+      try {
+        const result = await createCourseDirect(course);
+        if (result.created) {
+          createdCount++;
+        } else {
+          duplicates++;
+        }
+      } catch {
+        duplicates++;
+      }
+    }
+
+    return { createdCount, duplicates };
+  }
+}
+
+// Cache for categories - refresh every 5 minutes
+let cachedCategories: Array<{ name: string; count: number }> | null = null;
+let categoriesCacheTime = 0;
+const CATEGORIES_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 export async function getAllCategories() {
+  const now = Date.now();
+  
+  // Return cached categories if still valid
+  if (cachedCategories && now - categoriesCacheTime < CATEGORIES_CACHE_TTL) {
+    return cachedCategories;
+  }
+
   const results = await db.course.groupBy({
     by: ['category'],
     where: { isPublished: true },
     _count: { category: true },
   });
-  return results.map(r => ({ name: r.category, count: r._count.category }));
+  const categories = results.map(r => ({ name: r.category, count: r._count.category }));
+  
+  // Update cache
+  cachedCategories = categories;
+  categoriesCacheTime = now;
+  
+  return categories;
 }
+
+// Cache for total courses count - refresh every 2 minutes
+let cachedTotalCourses: number | null = null;
+let totalCoursesCacheTime = 0;
+const TOTAL_COURSES_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
 
 export async function countCourses(where?: Prisma.CourseWhereInput) {
-  return db.course.count({ where });
+  // If no where clause and we have cached total, return it
+  if (!where) {
+    const now = Date.now();
+    if (cachedTotalCourses !== null && now - totalCoursesCacheTime < TOTAL_COURSES_CACHE_TTL) {
+      return cachedTotalCourses;
+    }
+  }
+
+  const count = await db.course.count({ where });
+  
+  // Update cache only for total count (no where clause)
+  if (!where) {
+    cachedTotalCourses = count;
+    totalCoursesCacheTime = Date.now();
+  }
+  
+  return count;
 }
 
+// Cache for courses by source - refresh every 5 minutes
+let cachedCoursesBySource: Array<{ _id: string | null; count: number }> | null = null;
+let coursesBySourceCacheTime = 0;
+const SOURCES_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 export async function countCoursesBySource() {
+  const now = Date.now();
+  
+  // Return cached data if still valid
+  if (cachedCoursesBySource && now - coursesBySourceCacheTime < SOURCES_CACHE_TTL) {
+    return cachedCoursesBySource;
+  }
+
   const results = await db.course.groupBy({
     by: ['source'],
     _count: { source: true },
   });
-  return results.map(r => ({ _id: r.source, count: r._count.source }));
+  const sources = results.map(r => ({ _id: r.source, count: r._count.source }));
+  
+  // Update cache
+  cachedCoursesBySource = sources;
+  coursesBySourceCacheTime = now;
+  
+  return sources;
+}
+
+// Clear all caches manually (useful after bulk operations)
+export function clearQueriesCache(): void {
+  cachedCategories = null;
+  categoriesCacheTime = 0;
+  cachedTotalCourses = null;
+  totalCoursesCacheTime = 0;
+  cachedCoursesBySource = null;
+  coursesBySourceCacheTime = 0;
 }
 
 export async function countNewToday() {

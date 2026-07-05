@@ -60,14 +60,16 @@ const getCoursesPayloadCached = unstable_cache(
 async function buildCoursesPayload(opts: PayloadOpts) {
   const { locale, page, limit, search, category, source, sort, freeForever } = opts;
 
-  let settings: { site_name: string; site_description: string; courses_per_page: number };
-  try {
-    settings = await getSiteSettings();
-  } catch {
-    settings = { site_name: 'Learn Plus Courses', site_description: '', courses_per_page: 12 };
-  }
-
-  const categories = await getAllCategories();
+  // Fetch settings, categories, and total courses in parallel
+  const [settings, categories, totalCourses] = await Promise.all([
+    getSiteSettings().catch(() => ({
+      site_name: 'Learn Plus Courses',
+      site_description: '',
+      courses_per_page: 12,
+    })),
+    getAllCategories().catch(() => []),
+    countCourses({ isPublished: true }).catch(() => 0),
+  ]);
 
   // -------------------------------------------------------------------------
   // Arabic listing: CourseTranslation is the BASE query, not an overlay.
@@ -86,6 +88,7 @@ async function buildCoursesPayload(opts: PayloadOpts) {
       freeForever,
       categories,
       settings,
+      totalCourses,
     });
   }
 
@@ -93,7 +96,6 @@ async function buildCoursesPayload(opts: PayloadOpts) {
   // English listing: original Course rows (unchanged behavior).
   // -------------------------------------------------------------------------
   const { courses, total } = await getAllCourses({ page, limit, search, category, source, sort });
-  const totalCourses = await countCourses({ isPublished: true });
 
   return {
     success: true,
@@ -147,8 +149,9 @@ async function arabicCoursesPayload(opts: {
   freeForever: string;
   categories: unknown;
   settings: { site_name: string; site_description: string; courses_per_page: number };
+  totalCourses?: number;
 }) {
-  const { page, limit, search, category, source, sort, freeForever, categories, settings } = opts;
+  const { page, limit, search, category, source, sort, freeForever, categories, settings, totalCourses: preloadedTotalCourses } = opts;
   const skip = (page - 1) * limit;
 
   // Course-side constraints live under the `course` relation.
@@ -194,15 +197,19 @@ async function arabicCoursesPayload(opts: {
 
   let rows: any[] = [];
   let total = 0;
-  let totalCourses = 0;
+  let totalCourses = preloadedTotalCourses || 0;
   try {
-    [rows, total, totalCourses] = await Promise.all([
+    [rows, total] = await Promise.all([
       (db as any).courseTranslation.findMany({ where, include: { course: true }, orderBy, skip, take: limit }),
       (db as any).courseTranslation.count({ where }),
-      (db as any).courseTranslation.count({
-        where: { locale: 'ar', status: 'translated', course: { isPublished: true } },
-      }),
     ]);
+    
+    // Only fetch total courses count if not preloaded
+    if (!preloadedTotalCourses) {
+      totalCourses = await (db as any).courseTranslation.count({
+        where: { locale: 'ar', status: 'translated', course: { isPublished: true } },
+      });
+    }
   } catch {
     // i18n table not ready — return an empty Arabic listing rather than 500.
     rows = [];
