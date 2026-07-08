@@ -4,24 +4,15 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-// Configure Prisma with connection pooling for better performance
-// This reduces the number of database connections and improves query efficiency
-const prismaOptions = {
-  // Connection pooling settings
-  pool: {
-    max_connections: 10,      // Maximum number of connections in the pool
-    min_connections: 2,       // Minimum number of connections to keep open
-    idle_timeout: 30000,     // 30 seconds - close idle connections after this time
-    max_lifetime: 60000,     // 60 seconds - maximum lifetime of a connection
-  },
-  // Log queries in development for debugging
-  log: process.env.NODE_ENV === 'development' 
-    ? ['query', 'info', 'warn', 'error'] 
-    : ['error'],
-}
+// Prisma Client options. The `pool` option previously passed here is NOT a
+// valid Prisma Client constructor option — it was silently ignored, and
+// connection pooling is managed by Prisma Accelerate on the server side.
+const logLevel = process.env.NODE_ENV === 'development'
+  ? ['query', 'info', 'warn', 'error']
+  : ['error']
 
 export const db =
-  globalForPrisma.prisma ?? new PrismaClient(prismaOptions)
+  globalForPrisma.prisma ?? new PrismaClient({ log: logLevel as any })
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
 
