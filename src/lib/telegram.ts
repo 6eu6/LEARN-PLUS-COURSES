@@ -40,7 +40,7 @@ async function sendMessage(
       link_preview_options: {
         url: previewUrl || '',
         prefer_large_media: true,
-        show_above_text: false,
+        show_above_text: true,
       },
     };
     if (replyMarkup) {

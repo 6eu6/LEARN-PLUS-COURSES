@@ -1,11 +1,13 @@
 // Default Telegram post templates (shared by the formatter and settings).
 // Lines whose placeholders are all empty are dropped at render time.
 //
-// {link} and {cta} are rendered by the formatter as HTML anchors (blue, tappable
-// text) rather than raw URLs:
-//   {link} → "Click here to get the course"  → the (shortened) course link
-//   {cta}  → "Add the automatic courses service to your channel/group"
-//            → opens the contact bot
+// {cta} is rendered by the formatter as an HTML anchor (blue, tappable text):
+//   {cta} → "Add the automatic courses service to your channel/group"
+//           → opens the contact bot
+//
+// {link} is intentionally NOT in the default template: the course link is
+// already delivered as an inline "🚀 Enroll Free" button below the message,
+// so a second clickable line in the body would be redundant.
 export const DEFAULT_TEMPLATES = {
   en:
     '\u{1F4DA} <b>{title}</b>\n\n' +
@@ -16,7 +18,6 @@ export const DEFAULT_TEMPLATES = {
     '\u{1F30D} <b>Language:</b> {language}\n' +
     '⏱️ <b>Duration:</b> {duration}\n\n' +
     '✅ Free coupon — limited time\n' +
-    '\u{1F449} {link}\n' +
     '➕ {cta}',
   ar:
     '\u{1F4DA} <b>{title}</b>\n\n' +
@@ -27,6 +28,5 @@ export const DEFAULT_TEMPLATES = {
     '\u{1F30D} <b>اللغة:</b> {language}\n' +
     '⏱️ <b>المدة:</b> {duration}\n\n' +
     '✅ كوبون مجاني — لفترة محدودة\n' +
-    '\u{1F449} {link}\n' +
     '➕ {cta}',
 };
