@@ -15,7 +15,7 @@
 //   - Ad-blockers: the slot gracefully collapses (no broken placeholders).
 
 import { unstable_cache } from 'next/cache'
-import { revalidateTag } from 'next/cache'
+import { revalidateTag, revalidatePath } from 'next/cache'
 import { db } from './db'
 
 export type AdProvider = 'none' | 'adsense' | 'adsterra'
@@ -103,8 +103,18 @@ export async function saveAdSettings(s: DisplayAdSettings): Promise<void> {
     update: { value: JSON.stringify(s) },
     create: { id: SETTING_KEY, value: JSON.stringify(s) },
   })
-  // Purge the courses cache too (ad slots are on the same pages).
-  try { revalidateTag('courses', { expire: 0 }) } catch { /* non-route */ }
+  // Purge the courses data cache + ALL page routes that render ad slots.
+  // revalidatePath marks the route cache as stale so the next visitor gets
+  // fresh HTML with the new ad state (enabled/disabled).
+  try {
+    revalidateTag('courses', { expire: 0 })
+    // Purge every locale + every page type that has ad zones.
+    for (const locale of ['en', 'ar']) {
+      revalidatePath(`/${locale}`, 'page')
+      revalidatePath(`/${locale}/course/[slug]`, 'page')
+      revalidatePath(`/${locale}/course/[slug]/enroll`, 'page')
+    }
+  } catch { /* non-route context — harmless */ }
 }
 
 /** Quick check for a specific zone — used by AdSlot to decide render. */
