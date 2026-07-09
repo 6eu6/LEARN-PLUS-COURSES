@@ -67,8 +67,16 @@ function editMessage(chatId: string, messageId: number, text: string, keyboard?:
   });
 }
 
-function answerCallback(id: string, text?: string) {
-  return tg('answerCallbackQuery', { callback_query_id: id, ...(text ? { text } : {}) });
+function answerCallback(id: string, text?: string, showAlert = false) {
+  return tg('answerCallbackQuery', { callback_query_id: id, ...(text ? { text, show_alert: showAlert } : {}) });
+}
+
+// Send a confirmation message as a NEW message (not just editing the old one).
+// This guarantees the admin sees a clear, persistent confirmation that their
+// action took effect — instead of relying on a fleeting toast or a silent
+// editMessage that may not be noticed.
+async function confirm(chatId: string, text: string): Promise<void> {
+  await tg('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true });
 }
 
 // --------------------------------------------------------------------
@@ -676,7 +684,8 @@ async function handleCallback(chatId: string, messageId: number, data: string, c
     const s = await getAdSettings();
     s.enabled = data === 'act:ads:on';
     await saveAdSettings(s);
-    await answerCallback(cbId, s.enabled ? 'Ads ON' : 'Ads OFF');
+    await answerCallback(cbId, s.enabled ? 'Ads ON' : 'Ads OFF', true);
+    await confirm(chatId, s.enabled ? '✅ <b>Display ads turned ON</b>\nAds will now render on the website (for enabled zones).' : '🔴 <b>Display ads turned OFF</b>\nNo ads will render on the website.');
     const v = await viewAds();
     return editMessage(chatId, messageId, v.text, v.keyboard);
   }
@@ -688,7 +697,8 @@ async function handleCallback(chatId: string, messageId: number, data: string, c
     const next = order[(order.indexOf(s.provider as typeof order[number]) + 1) % order.length];
     s.provider = next;
     await saveAdSettings(s);
-    await answerCallback(cbId, `Provider: ${next}`);
+    await answerCallback(cbId, `Provider: ${next}`, true);
+    await confirm(chatId, `✅ <b>Ad provider changed to: ${next}</b>`);
     const v = await viewAds();
     return editMessage(chatId, messageId, v.text, v.keyboard);
   }
@@ -699,7 +709,9 @@ async function handleCallback(chatId: string, messageId: number, data: string, c
     if (s.slots[zone]) {
       s.slots[zone].enabled = !s.slots[zone].enabled;
       await saveAdSettings(s);
-      await answerCallback(cbId, `${zone}: ${s.slots[zone].enabled ? 'ON' : 'OFF'}`);
+      const state = s.slots[zone].enabled ? 'ON' : 'OFF';
+      await answerCallback(cbId, `${zone}: ${state}`, true);
+      await confirm(chatId, `✅ <b>Ad zone "${zone}" turned ${state}</b>`);
     }
     const v = await viewAds();
     return editMessage(chatId, messageId, v.text, v.keyboard);
@@ -712,7 +724,9 @@ async function handleCallback(chatId: string, messageId: number, data: string, c
     const s = await getShortenerSettings();
     s.telegramShortener = val === 'clean' ? 'clean' : 'off';
     await saveShortenerSettings(s);
-    await answerCallback(cbId, s.telegramShortener === 'clean' ? 'TG: clean short links' : 'TG: full URL');
+    const msg = s.telegramShortener === 'clean' ? '✅ <b>Telegram links: Clean (is.gd, no ads)</b>\nChannel posts will use shortened, ad-free links.' : '🔴 <b>Telegram links: Off (full URL)</b>\nChannel posts will use the full course page URL.';
+    await answerCallback(cbId, s.telegramShortener === 'clean' ? 'TG: clean short links' : 'TG: full URL', true);
+    await confirm(chatId, msg);
     const v = await viewShortener();
     return editMessage(chatId, messageId, v.text, v.keyboard);
   }
@@ -723,7 +737,9 @@ async function handleCallback(chatId: string, messageId: number, data: string, c
     const s = await getShortenerSettings();
     s.websiteAds = { enabled: val === 'on', everyN: s.websiteAds?.everyN ?? 5 };
     await saveShortenerSettings(s);
-    await answerCallback(cbId, val === 'on' ? 'Website ads ON' : 'Website ads OFF');
+    const msg = val === 'on' ? '✅ <b>Website ads ON</b>\nOutbound clicks will go through ShrinkMe every Nth click.' : '🔴 <b>Website ads OFF</b>\nOutbound clicks go direct to Udemy.';
+    await answerCallback(cbId, val === 'on' ? 'Website ads ON' : 'Website ads OFF', true);
+    await confirm(chatId, msg);
     const v = await viewShortener();
     return editMessage(chatId, messageId, v.text, v.keyboard);
   }
@@ -733,7 +749,8 @@ async function handleCallback(chatId: string, messageId: number, data: string, c
     const s = await getShortenerSettings();
     s.websiteAds = { enabled: true, everyN: n };
     await saveShortenerSettings(s);
-    await answerCallback(cbId, `Ad on every ${n}ᵗʰ click`);
+    await answerCallback(cbId, `Ad on every ${n}ᵗʰ click`, true);
+    await confirm(chatId, `✅ <b>Website ad frequency set to every ${n}ᵗʰ click</b>\nVisitors open ${Math.max(n - 1, 0)} links normally, then 1 ad.`);
     const v = await viewShortener();
     return editMessage(chatId, messageId, v.text, v.keyboard);
   }
@@ -775,7 +792,8 @@ async function handleCallback(chatId: string, messageId: number, data: string, c
     const s = await getTelegramSettings();
     s.auto_post = !s.auto_post;
     await saveTelegramSettings(s);
-    await answerCallback(cbId, `Auto-post ${s.auto_post ? 'ON' : 'OFF'}`);
+    await answerCallback(cbId, `Auto-post ${s.auto_post ? 'ON' : 'OFF'}`, true);
+    await confirm(chatId, s.auto_post ? '✅ <b>Auto-post turned ON</b>\nNew courses will be posted automatically after each scrape.' : '🔴 <b>Auto-post turned OFF</b>\nNo automatic posting — use "Post new now" to post manually.');
     const v = await viewPosting();
     return editMessage(chatId, messageId, v.text, v.keyboard);
   }
@@ -797,7 +815,8 @@ async function handleCallback(chatId: string, messageId: number, data: string, c
     if (op === 'info') { await answerCallback(cbId, `${ch.name} · ${ch.id || 'no id'} · ${ch.active ? 'active' : 'inactive'}`); return; }
     if (op === 'tog') {
       ch.active = !ch.active; await saveTelegramSettings(s);
-      await answerCallback(cbId, ch.active ? 'Enabled' : 'Disabled');
+      await answerCallback(cbId, ch.active ? 'Enabled' : 'Disabled', true);
+      await confirm(chatId, ch.active ? `✅ <b>Channel "${escapeHtml(ch.name)}" enabled</b>\nIt will now receive posts.` : `🔴 <b>Channel "${escapeHtml(ch.name)}" disabled</b>\nIt will not receive posts until re-enabled.`);
       const v = await viewChannels(); return editMessage(chatId, messageId, v.text, v.keyboard);
     }
     if (op === 'rm') {
