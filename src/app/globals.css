@@ -326,3 +326,48 @@ main > div.text-center.pt-4.pb-8 > a[href="/"]:hover {
     animation: none;
   }
 }
+
+/* =========================================================
+   Liquid Glass buttons — for the Admin Mini App
+   ========================================================= */
+@layer components {
+  .glass-btn {
+    border: 1px solid color-mix(in oklch, var(--foreground) 15%, transparent);
+    background: color-mix(in oklch, var(--foreground) 4%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: var(--foreground);
+    transition: all 0.2s ease;
+  }
+  .glass-btn:hover {
+    background: color-mix(in oklch, var(--foreground) 8%, transparent);
+  }
+  .glass-btn:active {
+    transform: scale(0.97);
+  }
+  .glass-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Glossy primary button — colored with a gradient + top highlight (sheen) */
+  .glossy-btn {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s ease;
+  }
+  .glossy-btn::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to bottom,
+      color-mix(in oklch, white 25%, transparent) 0%,
+      transparent 50%
+    );
+    pointer-events: none;
+  }
+  .glossy-btn:active {
+    transform: scale(0.97);
+  }
+}

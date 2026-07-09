@@ -14,7 +14,7 @@ import { NextResponse } from 'next/server';
 const TELEGRAM_API = 'https://api.telegram.org';
 const LANGS = ['en', 'ar', 'es', 'fr', 'pt', 'tr', 'hi', 'zh', 'ja', 'ko', 'de', 'ru'];
 
-type Btn = { text: string; callback_data: string };
+type Btn = { text: string; callback_data?: string; web_app?: { url: string } };
 type Keyboard = { inline_keyboard: Btn[][] };
 type ReplyKeyboard = {
   keyboard: { text: string }[][];
@@ -125,6 +125,7 @@ async function clearState(chatId: string): Promise<void> {
 
 const mainMenu: Keyboard = {
   inline_keyboard: [
+    [{ text: '🎛️ Open Dashboard', web_app: { url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.learn-plus.uk'}/admin` } }],
     [{ text: '📊 Statistics', callback_data: 'nav:stats' }, { text: '🔄 Scraper', callback_data: 'nav:scrape' }],
     [{ text: '📡 Channels', callback_data: 'nav:chan' }, { text: '📤 Posting', callback_data: 'nav:post' }],
     [{ text: '📝 Templates', callback_data: 'nav:tpl' }, { text: '🧹 Cleanup', callback_data: 'nav:clean' }],
