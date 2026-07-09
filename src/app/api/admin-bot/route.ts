@@ -191,16 +191,44 @@ function viewMain(): { text: string; keyboard: Keyboard } {
 }
 
 async function viewStats(): Promise<{ text: string; keyboard: Keyboard }> {
-  const { countCourses, countNewToday, getLastScrapeTime, countCoursesBySource } = await import('@/lib/queries');
-  const [total, published, bySource, newToday, last] = await Promise.all([
+  const { countCourses, countNewToday, countCoursesBySource } = await import('@/lib/queries');
+  const { db } = await import('@/lib/db');
+  const [total, published, bySource, newToday] = await Promise.all([
     countCourses({}),
     countCourses({ isPublished: true }),
     countCoursesBySource(),
     countNewToday(),
-    getLastScrapeTime(),
   ]);
-  const posted = await countCourses({ telegramPosted: true });
-  const pending = Math.max(0, published - posted);
+
+  // ACCURATE stats (matching /api/stats):
+  // 1. Posted = DISTINCT courses in TelegramPost(status='sent'), not
+  //    Course.telegramPosted (which the post cron never sets — always 0).
+  // 2. Last scrape = MAX(Course.scrapedAt), not ScraperLog (scrape-batch
+  //    cron doesn't write ScraperLog, so it shows stale 2026-06-09).
+  const [lastScrapeRow, postedEn, postedAr] = await Promise.all([
+    db.course.findFirst({
+      where: { isPublished: true },
+      orderBy: { scrapedAt: 'desc' },
+      select: { scrapedAt: true },
+    }),
+    (db as any).telegramPost.findMany({
+      where: { locale: 'en', status: 'sent' },
+      select: { courseId: true },
+      distinct: ['courseId'],
+    }).then((r: any[]) => r.length).catch(() => 0),
+    (db as any).telegramPost.findMany({
+      where: { locale: 'ar', status: 'sent' },
+      select: { courseId: true },
+      distinct: ['courseId'],
+    }).then((r: any[]) => r.length).catch(() => 0),
+  ]);
+
+  const posted = postedEn + postedAr;
+  // "Pending" = published - max(en, ar) since a course posted to EN is
+  // considered reached (AR follows shortly after).
+  const postedMax = Math.max(postedEn, postedAr);
+  const pending = Math.max(0, published - postedMax);
+  const last = lastScrapeRow?.scrapedAt;
   const sources = bySource.map((s) => `  • ${s._id}: <b>${s.count}</b>`).join('\n') || '  —';
   const lastStr = last
     ? new Date(last).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -209,7 +237,7 @@ async function viewStats(): Promise<{ text: string; keyboard: Keyboard }> {
     text:
       `📊 <b>Statistics</b>\n\n` +
       `📚 Total: <b>${total}</b>\n✅ Published: <b>${published}</b>\n🆕 New today: <b>${newToday}</b>\n` +
-      `📤 Posted: <b>${posted}</b>\n⏳ Pending: <b>${pending}</b>\n\n<b>By source:</b>\n${sources}\n\n🕐 Last scrape: <b>${lastStr}</b>`,
+      `📤 Posted: <b>${posted}</b> (EN: ${postedEn}, AR: ${postedAr})\n⏳ Pending: <b>${pending}</b>\n\n<b>By source:</b>\n${sources}\n\n🕐 Last scrape: <b>${lastStr}</b>`,
     keyboard: { inline_keyboard: [[{ text: '🔄 Refresh', callback_data: 'nav:stats' }], backRow()] },
   };
 }
@@ -355,40 +383,95 @@ async function runScrape(chatId: string, pages: number, which: 'all' | 'uf' | 's
 }
 
 async function postNow(chatId: string) {
-  const { getUnpostedCourses, getTelegramSettings, markCourseTelegramPosted, logTelegramMessage } = await import('@/lib/queries');
-  const { postCourseToTelegram } = await import('@/lib/telegram');
+  // Uses the SAME mechanism as /api/cron/post (TelegramPost dedup, per-locale,
+  // with image_url for sendPhoto). This replaces the old getUnpostedCourses +
+  // markCourseTelegramPosted flow that used Course.telegramPosted (a legacy
+  // boolean the cron never sets, so it always returned ALL courses).
+  const { getTelegramSettings, logTelegramMessage } = await import('@/lib/queries');
+  const { db } = await import('@/lib/db');
+  const { withCourseDefaults } = await import('@/lib/course-display');
+  const { postCourseToTelegramChannels } = await import('@/lib/telegram');
+  const { shortenForShare } = await import('@/lib/shortener');
+  const { normalizeLocale, localizedCoursePath } = await import('@/lib/i18n');
+
   const settings = await getTelegramSettings();
   const token = process.env.TELEGRAM_BOT_TOKEN || settings.bot_token;
   if (!token) {
     await sendMessage(chatId, '❌ Publishing bot token (TELEGRAM_BOT_TOKEN) is not set.');
     return;
   }
-  const unposted = await getUnpostedCourses(10);
-  if (unposted.length === 0) {
-    await sendMessage(chatId, '📭 Nothing to post — all caught up!');
-    return;
-  }
-  await sendMessage(chatId, `📤 Posting <b>${unposted.length}</b> course(s)…`);
-  const delayMs = settings.post_delay_ms || 60_000;
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || '';
   let posted = 0;
   const failed: string[] = [];
-  for (let i = 0; i < unposted.length; i++) {
-    const c = unposted[i];
-    const data = {
-      title: c.title, instructor: c.instructor, category: c.category, rating: c.rating,
-      students_count: c.studentsCount, original_price: c.originalPrice, language: c.language,
-      duration: c.duration, udemy_url: c.couponUrl || c.udemyUrl || '', slug: c.slug,
-    };
-    const res = await postCourseToTelegram(data, settings as unknown as Record<string, unknown>);
-    if (res.success) {
-      await markCourseTelegramPosted(c.id);
-      posted++;
-      await logTelegramMessage({ courseId: c.id, courseTitle: c.title, channels: res.channels, status: 'sent' });
-    } else {
-      failed.push(c.title);
+
+  for (const locale of ['en', 'ar'] as const) {
+    const activeChannels = (settings.channels || [])
+      .filter((c: any) => c.active && c.id && normalizeLocale(c.language) === locale);
+    if (activeChannels.length === 0) continue;
+
+    // Find courses not yet posted to THIS locale's channels (using TelegramPost,
+    // the real dedup table — same as the cron).
+    const candidates = await db.course.findMany({
+      where: { isPublished: true },
+      orderBy: { scrapedAt: 'desc' },
+      take: 30,
+    });
+    const sentMap = new Map<string, Set<string>>();
+    const sentRows = await (db as any).telegramPost.findMany({
+      where: { courseId: { in: candidates.map((c: any) => c.id) }, locale, channelId: { in: activeChannels.map((c: any) => c.id) }, status: 'sent' },
+      select: { courseId: true, channelId: true },
+    });
+    for (const r of sentRows as any[]) {
+      let set = sentMap.get(r.courseId);
+      if (!set) { set = new Set(); sentMap.set(r.courseId, set); }
+      set.add(r.channelId);
     }
-    if (i < unposted.length - 1) await new Promise((r) => setTimeout(r, delayMs));
+
+    const pending = candidates.filter((c: any) => {
+      const sent = sentMap.get(c.id);
+      const pendingCh = sent ? activeChannels.filter((ch: any) => !sent.has(ch.id)) : activeChannels;
+      return pendingCh.length > 0;
+    }).slice(0, 5); // limit to 5 per locale to stay under serverless time
+
+    for (const c of pending) {
+      const course = withCourseDefaults(c);
+      const fullCourseUrl = siteUrl ? `${siteUrl}${localizedCoursePath(locale, course.slug)}` : '';
+      const link = fullCourseUrl ? await shortenForShare(fullCourseUrl) : '';
+      const data = {
+        title: course.title,
+        instructor: course.instructor,
+        category: course.category,
+        rating: course.rating,
+        students_count: course.studentsCount,
+        original_price: course.originalPrice,
+        language: course.language,
+        duration: course.duration,
+        udemy_url: course.couponUrl || course.udemyUrl || '',
+        slug: course.slug,
+        locale,
+        link,
+        image_url: course.imageUrl || '',
+      };
+      const pendingCh = activeChannels.filter((ch: any) => !sentMap.get(c.id)?.has(ch.id));
+      const res = await postCourseToTelegramChannels(data, settings as unknown as Record<string, unknown>, pendingCh as any);
+      if (res.success) {
+        posted++;
+        if (res.channelIds.length > 0) {
+          await (db as any).telegramPost.createMany({
+            data: res.channelIds.map((channelId: string) => ({ courseId: c.id, locale, channelId, status: 'sent' })),
+            skipDuplicates: true,
+          });
+        }
+        await logTelegramMessage({ courseId: c.id, courseTitle: course.title, channels: res.channels, status: `sent:${locale}` });
+      } else {
+        failed.push(course.title);
+      }
+      // small delay between posts
+      await new Promise((r) => setTimeout(r, 2000));
+    }
   }
+
   await sendMessage(
     chatId,
     `📤 <b>Posting done</b>\n\n✅ Posted: <b>${posted}</b>\n❌ Failed: <b>${failed.length}</b>` +
