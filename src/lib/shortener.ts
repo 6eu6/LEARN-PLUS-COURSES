@@ -104,15 +104,13 @@ async function readSettingsUncached(): Promise<ShortenerSettings> {
   }
 }
 
-// Cached: 0 DB queries in the common case. Purged on save.
-const readSettingsCached = unstable_cache(
-  readSettingsUncached,
-  ['shortener-settings'],
-  { tags: [SETTINGS_TAG], revalidate: 300 },
-)
-
+// NOTE: no unstable_cache. The cache caused stale reads when the admin toggled
+// settings via the bot webhook — revalidateTag doesn't work reliably in a
+// webhook (non-route) context, so the bot kept reading old settings for up to
+// 5 minutes. A direct primary-key read is sub-millisecond on Accelerate and
+// guarantees the admin sees the fresh state on the next call.
 export async function getShortenerSettings(): Promise<ShortenerSettings> {
-  return readSettingsCached()
+  return readSettingsUncached()
 }
 
 export async function saveShortenerSettings(s: ShortenerSettings): Promise<void> {
@@ -127,8 +125,6 @@ export async function saveShortenerSettings(s: ShortenerSettings): Promise<void>
     update: { value: JSON.stringify({ telegramShortener, websiteAds }) },
     create: { id: SETTING_KEY, value: JSON.stringify({ telegramShortener, websiteAds }) },
   })
-  // Purge the cache so the next read sees the new value immediately.
-  try { revalidateTag(SETTINGS_TAG, { expire: 0 }) } catch { /* non-route context — harmless */ }
 }
 
 // ============================================
