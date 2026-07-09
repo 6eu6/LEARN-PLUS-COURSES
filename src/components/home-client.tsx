@@ -321,7 +321,7 @@ export function HomeClient({ locale, basePath }: { locale: Locale; basePath: str
 
   return (
     <div className="min-h-screen bg-background flex flex-col" lang={locale} dir={dir}>
-      <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-50">
+      <header dir="ltr" className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-4 py-2.5 flex items-center justify-between">
           <button onClick={() => router.push(homeHref)} className="flex items-center gap-2">
             <LogoMark className="h-6 w-6" />

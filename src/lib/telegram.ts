@@ -46,6 +46,39 @@ async function sendMessage(
   }
 }
 
+// Send a photo with a caption (HTML). Falls back to sendMessage if the photo URL
+// is missing or the sendPhoto call fails, so a post is never lost just because
+// the image is unavailable.
+async function sendPhoto(
+  botToken: string,
+  chatId: string,
+  photoUrl: string,
+  caption: string,
+  parseMode: string = 'HTML',
+  replyMarkup?: Record<string, unknown>
+): Promise<boolean> {
+  try {
+    const body: Record<string, unknown> = {
+      chat_id: chatId,
+      photo: photoUrl,
+      caption,
+      parse_mode: parseMode,
+    };
+    if (replyMarkup) {
+      body.reply_markup = replyMarkup;
+    }
+    const response = await fetch(`${TELEGRAM_API}/bot${botToken}/sendPhoto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 // ============================================
 // Format Course Message (Beautiful HTML)
 // ============================================
@@ -187,6 +220,7 @@ export async function postCourseToTelegramChannels(
   // batches. This keeps posting to hundreds/thousands of channels fast while
   // staying under the rate limit.
   const channelMessage = formatCourseMessageHtml(course, template);
+  const imageUrl = String(course.image_url || course.imageUrl || '');
   const active = channels.filter((c) => c.active && c.id);
   const CHUNK = 25;
   const PACE_MS = 1100;
@@ -200,7 +234,18 @@ export async function postCourseToTelegramChannels(
     }
     const batch = active.slice(i, i + CHUNK);
     const results = await Promise.allSettled(
-      batch.map((channel) => sendMessage(botToken, channel.id, channelMessage, 'HTML', keyboard)),
+      batch.map(async (channel) => {
+        // Prefer sendPhoto when an image is available — the course card shows
+        // up as a rich photo post in the channel instead of a plain text blob.
+        if (imageUrl && /^https?:\/\//i.test(imageUrl)) {
+          const ok = await sendPhoto(botToken, channel.id, imageUrl, channelMessage, 'HTML', keyboard);
+          if (ok) return true;
+          // Fallback to text-only if the photo URL is rejected (e.g. expired
+          // Udemy CDN link) so the post is never lost.
+          return sendMessage(botToken, channel.id, channelMessage, 'HTML', keyboard);
+        }
+        return sendMessage(botToken, channel.id, channelMessage, 'HTML', keyboard);
+      }),
     );
     results.forEach((r, j) => {
       const channel = batch[j];

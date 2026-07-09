@@ -121,7 +121,7 @@ const mainMenu: Keyboard = {
     [{ text: '📡 Channels', callback_data: 'nav:chan' }, { text: '📤 Posting', callback_data: 'nav:post' }],
     [{ text: '📝 Templates', callback_data: 'nav:tpl' }, { text: '🧹 Cleanup', callback_data: 'nav:clean' }],
     [{ text: '📨 Broadcast', callback_data: 'ask:bcast' }, { text: '⚙️ Settings', callback_data: 'nav:set' }],
-    [{ text: '🔗 Links', callback_data: 'nav:short' }],
+    [{ text: '🔗 Links', callback_data: 'nav:short' }, { text: '📖 Guide', callback_data: 'nav:guide' }],
   ],
 };
 
@@ -414,6 +414,59 @@ async function broadcast(chatId: string, msg: string) {
   await sendMessage(chatId, `📨 <b>Broadcast done</b>\n✅ ${sent} · ❌ ${fail}`);
 }
 
+// Complete admin guide — every control in one place. Helps the admin use the
+// bot without trial-and-error. Accessible from the main menu via 📖 Guide.
+function viewGuide(): { text: string; keyboard: Keyboard } {
+  const text =
+    `📖 <b>Admin Guide — Learn Plus Courses</b>\n\n` +
+    `This bot controls everything. Every section below is a button in the main menu.\n\n` +
+    `📊 <b>Statistics</b>\n` +
+    `   Total/published courses, per-source counts, telegram posted (EN/AR),\n` +
+    `   last scrape time, new-today count.\n\n` +
+    `🔄 <b>Scraper</b>\n` +
+    `   Run a manual scrape now (3 or 5 pages, all sources or one).\n` +
+    `   Automatic scrape runs every 3 hours via cron.\n\n` +
+    `📡 <b>Channels</b>\n` +
+    `   Add/remove Telegram channels. Each channel has a language (EN/AR).\n` +
+    `   EN channels get English posts; AR channels get Arabic posts.\n` +
+    `   A course is posted to each channel ONCE (dedup by courseId+locale+channelId).\n\n` +
+    `📤 <b>Posting</b>\n` +
+    `   Toggle auto-post, post new courses now, set delay between posts.\n` +
+    `   Posts include the course image, title, instructor, rating, and a\n` +
+    `   shortened link to the course page.\n\n` +
+    `📝 <b>Templates</b>\n` +
+    `   Customize the EN and AR message templates. Placeholders:\n` +
+    `   {title} {instructor} {rating} {students_count} {original_price}\n` +
+    `   {language} {duration} {link} {cta}\n` +
+    `   {link} = clickable link to the course page (shortened, no ads).\n` +
+    `   {cta} = "add the auto-courses service to your channel" promo.\n\n` +
+    `🧹 <b>Cleanup</b>\n` +
+    `   Remove duplicates (by title), clean invalid (bad coupons), purge ALL.\n` +
+    `   Automatic cleanup runs twice daily (03:30 + 15:30 UTC) via cron:\n` +
+    `   deletes courses whose coupon expired OR age > 7 days (2-day grace).\n\n` +
+    `📨 <b>Broadcast</b>\n` +
+    `   Send a custom message to all active channels at once.\n\n` +
+    `⚙️ <b>Settings</b>\n` +
+    `   Site name, description, courses per page.\n\n` +
+    `🔗 <b>Links</b>\n` +
+    `   Two independent controls:\n` +
+    `   📨 <b>Telegram</b>: Clean (is.gd, no ads) / Off (full URL).\n` +
+    `      Channel links are ALWAYS ad-free.\n` +
+    `   🌐 <b>Website</b>: Ads On/Off + frequency (every Nth click).\n` +
+    `      When ON, the /api/go redirect serves a ShrinkMe ad link every Nth\n` +
+    `      click; the rest go direct to Udemy.\n\n` +
+    `📖 <b>This guide</b> — keep it bookmarked.\n\n` +
+    `──────────────────\n` +
+    `Schedule (automatic, no action needed):\n` +
+    `• Scrape + post: every 3h at :07 (00,03,06,09,12,15,18,21 UTC)\n` +
+    `• Cleanup: twice daily at 03:30 + 15:30 UTC\n` +
+    `• Log prune: weekly Monday 04:00 UTC`;
+  return {
+    text,
+    keyboard: { inline_keyboard: [backRow()] },
+  };
+}
+
 async function viewShortener(): Promise<{ text: string; keyboard: Keyboard }> {
   const { getShortenerSettings } = await import('@/lib/shortener');
   const s = await getShortenerSettings();
@@ -481,6 +534,7 @@ async function handleCallback(chatId: string, messageId: number, data: string, c
   if (data === 'nav:tpl') { await answerCallback(cbId); const v = await viewTemplates(); return editMessage(chatId, messageId, v.text, v.keyboard); }
   if (data === 'nav:set') { await answerCallback(cbId); const v = await viewSettings(); return editMessage(chatId, messageId, v.text, v.keyboard); }
   if (data === 'nav:short') { await answerCallback(cbId); const v = await viewShortener(); return editMessage(chatId, messageId, v.text, v.keyboard); }
+  if (data === 'nav:guide') { await answerCallback(cbId); const v = viewGuide(); return editMessage(chatId, messageId, v.text, v.keyboard); }
 
   // Telegram shortener toggle
   if (data.startsWith('act:short:tg:')) {

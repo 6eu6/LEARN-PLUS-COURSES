@@ -79,15 +79,14 @@ function migrateOldShape(p: Record<string, unknown>): ShortenerSettings {
   }
 
   // Old shape: { mode: 'off'|'clean'|'ads', everyN }
+  // Migration policy: Telegram is ALWAYS clean (never ads). Website ads default
+  // OFF — the user must explicitly enable them from the admin bot. This matches
+  // the user's requirement: "Telegram links shortened but never ad-bearing;
+  // website ads are a separate, opt-in control."
   const mode = p.mode as string | undefined
   const everyN = clampN(p.everyN)
-  if (mode === 'ads') {
-    // Telegram was getting shortened (ad) links → now gets clean is.gd.
-    // Website had ads → keeps ads.
-    return { telegramShortener: 'clean', websiteAds: { enabled: true, everyN } }
-  }
-  if (mode === 'clean') {
-    // Both were clean → Telegram stays clean, website had no ads.
+  if (mode === 'ads' || mode === 'clean') {
+    // Both 'ads' and 'clean' → Telegram clean. Website ads OFF (user opts in).
     return { telegramShortener: 'clean', websiteAds: { enabled: false, everyN } }
   }
   // mode === 'off' or unknown → both off.

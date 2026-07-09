@@ -6,6 +6,11 @@ import { LocaleSwitch } from "@/components/locale-switch"
 import { makeT } from "@/lib/locale-text"
 import { localeDir, type Locale } from "@/lib/i18n"
 
+// Site header. Layout is ALWAYS left-to-right (dir="ltr") regardless of the
+// page language, so:
+//   - Logo is always on the LEFT.
+//   - Language globe + back button are always on the RIGHT.
+// Only the text inside the back button follows the page language.
 export function SiteHeader({
   backHref = "/",
   backLabel = "Home",
@@ -19,23 +24,23 @@ export function SiteHeader({
   backShort?: string
   locale?: Locale
 }) {
+  const t = makeT(locale)
   return (
-    <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-sm">
+    <header dir="ltr" className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-sm">
       <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
+        {/* LEFT: logo + brand (always left) */}
         <Link href={homeHref} className="flex min-w-0 items-center gap-2 text-sm font-semibold">
           <LogoMark className="h-5 w-5 shrink-0" />
           <span className="truncate">Learn Plus Courses</span>
         </Link>
+        {/* RIGHT: language globe + theme + back (always right) */}
         <div className="flex shrink-0 items-center gap-2">
           <LocaleSwitch locale={locale} />
           <ThemeToggle />
           <Link
             href={backHref}
-            dir="ltr"
             className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            {/* dir="ltr" forces a consistent "label →" layout (arrow on the
-                trailing edge) in both languages, regardless of page direction. */}
             <span className="hidden sm:inline">{backLabel}</span>
             <span className="sm:hidden">{backShort}</span>
             <ArrowRight className="h-3.5 w-3.5" />
@@ -125,7 +130,7 @@ export function SiteFooter({ locale = "en" }: { locale?: Locale }) {
             className="inline-flex items-center gap-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
           >
             <span>{t("builtBy")}</span>
-            <span dir="ltr" className="text-sm font-extrabold tracking-tight text-foreground">Ahmed<span className="text-emerald-500">.</span></span>
+            <span dir="ltr" className="text-sm font-extrabold tracking-tight text-foreground">Ahmed<span className="text-muted-foreground">.</span></span>
           </a>
         </div>
       </div>

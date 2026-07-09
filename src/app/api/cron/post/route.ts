@@ -221,6 +221,7 @@ export async function GET(request: Request) {
         slug: item.slug,
         locale,
         link,
+        image_url: c.imageUrl || '',
       };
 
       const result = await postCourseToTelegramChannels(
