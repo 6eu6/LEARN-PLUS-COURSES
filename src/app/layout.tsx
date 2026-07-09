@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "next-themes";
 import { CookieConsent } from "@/components/cookie-consent";
 import { ThemeSync } from "@/components/theme-sync";
+import { Analytics } from "@vercel/analytics/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -67,6 +68,7 @@ export default function RootLayout({
           <Toaster />
           <CookieConsent />
           <ThemeSync />
+          <Analytics />
         </ThemeProvider>
       </body>
     </html>
