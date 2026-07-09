@@ -17,6 +17,8 @@ import { CourseImage } from '@/components/course-image'
 import { TimedReveal } from '@/components/timed-reveal'
 import { TelegramChannelButton } from '@/components/telegram-cta'
 import { ShareButtons } from '@/components/share-buttons'
+import { AdSlot } from '@/components/ad-slot'
+import { getAdSettings } from '@/lib/ads'
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.learn-plus.uk'
 const PLACEHOLDER_IMG = 'https://img-b.udemycdn.com/course/480x270/placeholder.jpg'
@@ -112,6 +114,9 @@ export default async function LocalizedCoursePage({ params }: PageProps) {
   const relatedRaw = await getRelatedCourses(course.category, course.slug, 4)
   const related = (await localizeCourseList(locale, relatedRaw)).map(withCourseDefaults)
 
+  // Ad config (cached). When disabled, AdSlot renders nothing.
+  const adSettings = await getAdSettings()
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Course',
@@ -204,6 +209,9 @@ export default async function LocalizedCoursePage({ params }: PageProps) {
           <p className="text-[11px] text-muted-foreground leading-relaxed">{t('note1')}</p>
           <p className="text-[11px] text-muted-foreground leading-relaxed">{t('note2')}</p>
         </div>
+
+        {/* Ad slot — course detail. Renders nothing when disabled. */}
+        <AdSlot zone="course_detail" settings={adSettings} />
 
         <div className="space-y-3">
           <div className="p-4 rounded-lg border bg-card text-center space-y-1">

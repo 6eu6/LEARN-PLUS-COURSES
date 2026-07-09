@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { Card, CardContent } from '@/components/ui/card'
@@ -36,6 +36,7 @@ import {
 import { LogoMark } from '@/components/logo'
 import { LocaleSwitch } from '@/components/locale-switch'
 import { SiteFooter } from '@/components/site-chrome'
+import { AdSlot } from '@/components/ad-slot'
 import { makeT, getLocalizedCategory } from '@/lib/locale-text'
 import { localeDir, type Locale } from '@/lib/i18n'
 
@@ -199,7 +200,7 @@ function CourseCard(props: { course: Course; t: TxFn; locale: Locale; onClick: (
   )
 }
 
-export function HomeClient({ locale, basePath }: { locale: Locale; basePath: string }) {
+export function HomeClient({ locale, basePath, adSettings }: { locale: Locale; basePath: string; adSettings?: any }) {
   const t = makeT(locale)
   const dir = localeDir(locale)
   const { theme, setTheme } = useTheme()
@@ -409,6 +410,9 @@ export function HomeClient({ locale, basePath }: { locale: Locale; basePath: str
 
           <Separator />
 
+          {/* Ad slot — home banner (above the course grid). Renders nothing when disabled. */}
+          <AdSlot zone="home_banner" settings={adSettings} />
+
           {loading ? (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
@@ -430,8 +434,16 @@ export function HomeClient({ locale, basePath }: { locale: Locale; basePath: str
           ) : (
             <>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {courses.map((course) => (
-                  <CourseCard key={course.id} course={course} t={t} locale={locale} onClick={() => openCourseDetail(course.slug)} />
+                {courses.map((course, idx) => (
+                  <Fragment key={course.id}>
+                    <CourseCard course={course} t={t} locale={locale} onClick={() => openCourseDetail(course.slug)} />
+                    {/* Native ad after the 3rd card (end of first row on desktop). Renders nothing when disabled. */}
+                    {idx === 2 && (
+                      <div className="sm:col-span-2 lg:col-span-3">
+                        <AdSlot zone="home_between" settings={adSettings} />
+                      </div>
+                    )}
+                  </Fragment>
                 ))}
               </div>
 

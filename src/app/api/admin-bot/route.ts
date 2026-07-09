@@ -121,7 +121,8 @@ const mainMenu: Keyboard = {
     [{ text: '📡 Channels', callback_data: 'nav:chan' }, { text: '📤 Posting', callback_data: 'nav:post' }],
     [{ text: '📝 Templates', callback_data: 'nav:tpl' }, { text: '🧹 Cleanup', callback_data: 'nav:clean' }],
     [{ text: '📨 Broadcast', callback_data: 'ask:bcast' }, { text: '⚙️ Settings', callback_data: 'nav:set' }],
-    [{ text: '🔗 Links', callback_data: 'nav:short' }, { text: '📖 Guide', callback_data: 'nav:guide' }],
+    [{ text: '🔗 Links', callback_data: 'nav:short' }, { text: '📺 Ads', callback_data: 'nav:ads' }],
+    [{ text: '📖 Guide', callback_data: 'nav:guide' }],
   ],
 };
 
@@ -455,6 +456,10 @@ function viewGuide(): { text: string; keyboard: Keyboard } {
     `   🌐 <b>Website</b>: Ads On/Off + frequency (every Nth click).\n` +
     `      When ON, the /api/go redirect serves a ShrinkMe ad link every Nth\n` +
     `      click; the rest go direct to Udemy.\n\n` +
+    `📺 <b>Ads</b>\n` +
+    `   Display ads on the website (AdSense / Adsterra). Master switch + per-zone\n` +
+    `   toggles: home banner, home between cards, course detail, enroll page.\n` +
+    `   Disabled by default — enable when ready to monetize.\n\n` +
     `📖 <b>This guide</b> — keep it bookmarked.\n\n` +
     `──────────────────\n` +
     `Schedule (automatic, no action needed):\n` +
@@ -465,6 +470,51 @@ function viewGuide(): { text: string; keyboard: Keyboard } {
     text,
     keyboard: { inline_keyboard: [backRow()] },
   };
+}
+
+// Display ads control — provider + per-zone toggles.
+async function viewAds(): Promise<{ text: string; keyboard: Keyboard }> {
+  const { getAdSettings } = await import('@/lib/ads');
+  const s = await getAdSettings();
+  const on = s.enabled && s.provider !== 'none';
+  const prov = s.provider === 'adsense' ? 'AdSense' : s.provider === 'adsterra' ? 'Adsterra' : 'None';
+  const sel = (zone: string) => (s.slots[zone as keyof typeof s.slots]?.enabled ? '✅ ' : '');
+
+  const rows: Btn[][] = [];
+  // Master toggle
+  rows.push([
+    { text: `${on ? '✅ ' : ''}Ads: On`, callback_data: 'act:ads:on' },
+    { text: `${!on ? '✅ ' : ''}Ads: Off`, callback_data: 'act:ads:off' },
+  ]);
+  // Provider (cycles none → adsense → adsterra → none)
+  rows.push([
+    { text: `Provider: ${prov}`, callback_data: 'act:ads:provider' },
+  ]);
+  // Per-zone toggles
+  rows.push([
+    { text: `${sel('home_banner')}Home banner`, callback_data: 'act:ads:zone:home_banner' },
+    { text: `${sel('home_between')}Home between`, callback_data: 'act:ads:zone:home_between' },
+  ]);
+  rows.push([
+    { text: `${sel('course_detail')}Course detail`, callback_data: 'act:ads:zone:course_detail' },
+    { text: `${sel('enroll_page')}Enroll page`, callback_data: 'act:ads:zone:enroll_page' },
+  ]);
+  rows.push(backRow());
+
+  let body =
+    `📺 <b>Display Ads</b>\n\n` +
+    `Master: ${on ? '🟢 On' : '🔴 Off'}\n` +
+    `Provider: <b>${prov}</b>\n` +
+    `Client ID: ${s.clientId ? `<code>${s.clientId.slice(0, 20)}…</code>` : 'not set'}\n\n` +
+    `Zones:\n` +
+    `  Home banner: ${s.slots.home_banner.enabled ? '✅' : '⬜'}\n` +
+    `  Home between: ${s.slots.home_between.enabled ? '✅' : '⬜'}\n` +
+    `  Course detail: ${s.slots.course_detail.enabled ? '✅' : '⬜'}\n` +
+    `  Enroll page: ${s.slots.enroll_page.enabled ? '✅' : '⬜'}\n\n` +
+    `To set provider + client ID + slot IDs, send a message in the format:\n` +
+    `<code>adsense ca-pub-XXXX slot_home slot_course slot_enroll</code>\n` +
+    `or <code>adsterra https://url1 https://url2 https://url3 https://url4</code>`;
+  return { text: body, keyboard: { inline_keyboard: rows } };
 }
 
 async function viewShortener(): Promise<{ text: string; keyboard: Keyboard }> {
@@ -534,7 +584,43 @@ async function handleCallback(chatId: string, messageId: number, data: string, c
   if (data === 'nav:tpl') { await answerCallback(cbId); const v = await viewTemplates(); return editMessage(chatId, messageId, v.text, v.keyboard); }
   if (data === 'nav:set') { await answerCallback(cbId); const v = await viewSettings(); return editMessage(chatId, messageId, v.text, v.keyboard); }
   if (data === 'nav:short') { await answerCallback(cbId); const v = await viewShortener(); return editMessage(chatId, messageId, v.text, v.keyboard); }
+  if (data === 'nav:ads') { await answerCallback(cbId); const v = await viewAds(); return editMessage(chatId, messageId, v.text, v.keyboard); }
   if (data === 'nav:guide') { await answerCallback(cbId); const v = viewGuide(); return editMessage(chatId, messageId, v.text, v.keyboard); }
+
+  // Display ads controls
+  if (data === 'act:ads:on' || data === 'act:ads:off') {
+    const { getAdSettings, saveAdSettings } = await import('@/lib/ads');
+    const s = await getAdSettings();
+    s.enabled = data === 'act:ads:on';
+    await saveAdSettings(s);
+    await answerCallback(cbId, s.enabled ? 'Ads ON' : 'Ads OFF');
+    const v = await viewAds();
+    return editMessage(chatId, messageId, v.text, v.keyboard);
+  }
+  if (data === 'act:ads:provider') {
+    // Cycle: none → adsense → adsterra → none
+    const { getAdSettings, saveAdSettings } = await import('@/lib/ads');
+    const s = await getAdSettings();
+    const order = ['none', 'adsense', 'adsterra'] as const;
+    const next = order[(order.indexOf(s.provider as typeof order[number]) + 1) % order.length];
+    s.provider = next;
+    await saveAdSettings(s);
+    await answerCallback(cbId, `Provider: ${next}`);
+    const v = await viewAds();
+    return editMessage(chatId, messageId, v.text, v.keyboard);
+  }
+  if (data.startsWith('act:ads:zone:')) {
+    const zone = data.split(':').slice(3).join(':') as any;
+    const { getAdSettings, saveAdSettings } = await import('@/lib/ads');
+    const s = await getAdSettings();
+    if (s.slots[zone]) {
+      s.slots[zone].enabled = !s.slots[zone].enabled;
+      await saveAdSettings(s);
+      await answerCallback(cbId, `${zone}: ${s.slots[zone].enabled ? 'ON' : 'OFF'}`);
+    }
+    const v = await viewAds();
+    return editMessage(chatId, messageId, v.text, v.keyboard);
+  }
 
   // Telegram shortener toggle
   if (data.startsWith('act:short:tg:')) {

@@ -10,6 +10,8 @@ import { TelegramChannelButton } from '@/components/telegram-cta'
 import { BulletList } from '@/components/bullet-list'
 import { SiteHeader, SiteFooter } from '@/components/site-chrome'
 import { ReportBrokenLinkButton } from '@/components/report-broken-link-button'
+import { AdSlot } from '@/components/ad-slot'
+import { getAdSettings } from '@/lib/ads'
 
 interface PageProps {
   params: Promise<{ locale: string; slug: string }>
@@ -61,6 +63,8 @@ export default async function LocalizedEnrollPage({ params }: PageProps) {
   // Route the outbound click through /api/go, which decides per-visitor whether
   // to go direct or via the (ad-bearing) shortener, per the admin settings.
   const startUrl = `/api/go?u=${encodeURIComponent(udemyUrl)}`
+  // Ad config (cached). When disabled, AdSlot renders nothing.
+  const adSettings = await getAdSettings()
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col" lang={locale} dir={dir}>
@@ -106,6 +110,8 @@ export default async function LocalizedEnrollPage({ params }: PageProps) {
         )}
 
         <div className="space-y-3">
+          {/* Ad slot — enroll page. Renders nothing when disabled. */}
+          <AdSlot zone="enroll_page" settings={adSettings} />
           <TimedReveal
             seconds={25}
             loadingText={t('preparingLink')}
