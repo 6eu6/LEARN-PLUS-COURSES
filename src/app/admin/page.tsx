@@ -4,6 +4,16 @@ import { useEffect, useState, useCallback } from 'react'
 import { Cookie, Check, X, RefreshCw, ExternalLink, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+// Hide the cookie consent banner on the admin dashboard (it's an admin-only
+// page, not a public visitor page).
+function HideCookieBanner() {
+  useEffect(() => {
+    const el = document.querySelector('[role="dialog"][aria-label="Cookie notice"], [role="dialog"][aria-label="الموافقة على الكوكيز"]')
+    if (el) (el as HTMLElement).style.display = 'none'
+  }, [])
+  return null
+}
+
 // ============================================================
 // Liquid Glass Admin Dashboard
 // ============================================================
@@ -151,6 +161,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6 lg:p-8" dir="ltr">
+      <HideCookieBanner />
       <div className="mx-auto max-w-5xl space-y-6">
         {/* Header */}
         <header className="liquid-glass rounded-3xl p-5 sm:p-6">
