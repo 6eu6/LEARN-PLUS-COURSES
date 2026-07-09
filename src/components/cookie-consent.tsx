@@ -135,43 +135,43 @@ export function CookieConsent() {
             </div>
           </div>
 
-          {/* Action row */}
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Action row — 3 equal columns, always on one row */}
+          <div className="grid grid-cols-3 gap-2">
             <button
               onClick={() => setCustomize((c) => !c)}
               aria-expanded={customize}
               aria-controls="cookie-customize-panel"
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-foreground/15 bg-foreground/[0.02] px-4 text-sm font-medium text-foreground/80 backdrop-blur-md transition-all hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100"
+              className="inline-flex h-9 items-center justify-center gap-1 rounded-full border border-foreground/15 bg-foreground/[0.02] px-2 text-xs font-medium text-foreground/80 backdrop-blur-md transition-all hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100 sm:px-3 sm:text-sm"
             >
               <ChevronDown
                 aria-hidden
                 className={cn(
-                  'size-4 transition-transform duration-300 motion-reduce:transition-none',
+                  'size-3.5 transition-transform duration-300 motion-reduce:transition-none sm:size-4',
                   customize && 'rotate-180',
                 )}
               />
-              Customize
+              <span className="hidden sm:inline">Customize</span>
+              <span className="sm:hidden">More</span>
             </button>
 
-            <div className="ml-auto flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => save({ necessary: true, analytics: false, ts: Date.now() })}
-                className="inline-flex h-9 items-center justify-center rounded-full border border-foreground/15 bg-foreground/[0.02] px-4 text-sm font-medium text-foreground/80 backdrop-blur-md transition-all hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100"
-              >
-                Reject optional
-              </button>
+            <button
+              onClick={() => save({ necessary: true, analytics: false, ts: Date.now() })}
+              className="inline-flex h-9 items-center justify-center rounded-full border border-foreground/15 bg-foreground/[0.02] px-2 text-xs font-medium text-foreground/80 backdrop-blur-md transition-all hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100 sm:px-3 sm:text-sm"
+            >
+              <span className="hidden sm:inline">Reject optional</span>
+              <span className="sm:hidden">Reject</span>
+            </button>
 
-              <button
-                onClick={() => save({ necessary: true, analytics: true, ts: Date.now() })}
-                className="group inline-flex h-9 items-center justify-center gap-1.5 rounded-full bg-foreground px-5 text-sm font-semibold text-background shadow-sm transition-all hover:bg-foreground/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100"
-              >
-                <Check
-                  aria-hidden
-                  className="size-4 opacity-80 transition-opacity group-hover:opacity-100"
-                />
-                Accept all
-              </button>
-            </div>
+            <button
+              onClick={() => save({ necessary: true, analytics: true, ts: Date.now() })}
+              className="group inline-flex h-9 items-center justify-center gap-1 rounded-full bg-foreground px-2 text-xs font-semibold text-background shadow-sm transition-all hover:bg-foreground/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100 sm:px-3 sm:text-sm"
+            >
+              <Check
+                aria-hidden
+                className="size-3.5 opacity-80 transition-opacity group-hover:opacity-100 sm:size-4"
+              />
+              Accept all
+            </button>
           </div>
         </div>
       </div>
