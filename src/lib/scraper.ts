@@ -393,10 +393,21 @@ function couponHasMonthYear(couponCode: string): boolean {
 
 /**
  * Estimate coupon expiry based on coupon code patterns.
- * ALL Udemy coupons are time-limited. Returns estimated expiry.
+ * ALL Udemy coupons are time-limited (typically 1-7 days). Returns estimated
+ * expiry, CAPPED at 7 days from now — month-pattern coupons (JUN2026) used to
+ * estimate end-of-month (up to 30 days), but real coupons rarely last a week,
+ * so the cap prevents stale "valid" courses from lingering in the DB.
  */
 function estimateCouponExpiry(couponCode: string): Date | null {
   if (!couponCode || !isValidCouponCode(couponCode)) return null;
+
+  // Hard cap: no coupon is valid for more than 7 days from scrape time.
+  const MAX_COUPON_DAYS = 7;
+  const cap = new Date();
+  cap.setDate(cap.getDate() + MAX_COUPON_DAYS);
+  cap.setHours(23, 59, 59, 0);
+
+  let estimate: Date | null = null;
 
   // Parse month/year patterns like JUN2026FREE1, MAY2026FRE01
   const monthNames: Record<string, number> = {
@@ -410,32 +421,34 @@ function estimateCouponExpiry(couponCode: string): Date | null {
       const yearStr = monthMatch[2];
       const year = yearStr.length === 2 ? 2000 + parseInt(yearStr) : parseInt(yearStr);
       if (year >= 2024 && year <= 2030) {
-        return new Date(year, month + 1, 0, 23, 59, 59);
+        estimate = new Date(year, month + 1, 0, 23, 59, 59);
       }
     }
   }
 
-  // Standard hex/alpha coupon codes: estimate 2-5 days
-  if (/^[A-Z0-9]{8,}$/.test(couponCode)) {
-    const expiry = new Date();
-    expiry.setDate(expiry.getDate() + 3);
-    expiry.setHours(23, 59, 59, 0);
-    return expiry;
+  // Standard hex/alpha coupon codes: estimate 3 days
+  if (!estimate && /^[A-Z0-9]{8,}$/.test(couponCode)) {
+    estimate = new Date();
+    estimate.setDate(estimate.getDate() + 3);
+    estimate.setHours(23, 59, 59, 0);
   }
 
-  // Shorter coupon codes: 1-2 days
-  if (couponCode.length >= 4 && couponCode.length < 8) {
-    const expiry = new Date();
-    expiry.setDate(expiry.getDate() + 2);
-    expiry.setHours(23, 59, 59, 0);
-    return expiry;
+  // Shorter coupon codes: 2 days
+  if (!estimate && couponCode.length >= 4 && couponCode.length < 8) {
+    estimate = new Date();
+    estimate.setDate(estimate.getDate() + 2);
+    estimate.setHours(23, 59, 59, 0);
   }
 
   // Default: 3 days for any valid coupon
-  const expiry = new Date();
-  expiry.setDate(expiry.getDate() + 3);
-  expiry.setHours(23, 59, 59, 0);
-  return expiry;
+  if (!estimate) {
+    estimate = new Date();
+    estimate.setDate(estimate.getDate() + 3);
+    estimate.setHours(23, 59, 59, 0);
+  }
+
+  // Apply the 7-day cap: never let a coupon appear valid longer than a week.
+  return estimate > cap ? cap : estimate;
 }
 
 // ============================================

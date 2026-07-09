@@ -51,6 +51,9 @@ model Course {
   @@index([source])
   @@index([category])
   @@index([isPublished])
+  @@index([scrapedAt])
+  @@index([couponExpiresAt])
+  @@index([telegramPosted, isPublished])
 }
 
 model CourseTranslation {
@@ -90,6 +93,8 @@ model ScraperLog {
   message   String   @default("")
   duration  Int      @default(0)
   timestamp DateTime @default(now())
+
+  @@index([timestamp])
 }
 
 model Setting {
@@ -105,6 +110,8 @@ model TelegramMessage {
   channels    String   @default("[]")
   status      String   @default("pending")
   sentAt      DateTime @default(now())
+
+  @@index([sentAt])
 }
 
 model TelegramPost {
@@ -121,4 +128,13 @@ model TelegramPost {
   @@unique([courseId, locale, channelId])
   @@index([locale, status])
   @@index([courseId])
+}
+
+model ShortLink {
+  id        String   @id @default(cuid())
+  sourceUrl String   @unique
+  cleanUrl  String?
+  adsUrl    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

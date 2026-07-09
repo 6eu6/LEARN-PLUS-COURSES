@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { getShortenerSettings, shouldServeAd, shortenByMode } from '@/lib/shortener'
+import { getShortenerSettings, shouldServeAd, shortenForWebsiteAds } from '@/lib/shortener'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,9 +18,9 @@ function isUdemy(u: string): boolean {
 }
 
 // GET /api/go?u=<udemy url>
-// Decides, per visitor, whether this outbound click goes direct or through the
-// (ad-bearing) ShrinkMe link, based on the admin frequency setting. The count is
-// kept in a cookie, so there are no database writes per click.
+// Website outbound click. The settings read is cached (tag 'shortener-settings')
+// so this costs 0 DB queries in the common case. The ad frequency is kept in a
+// cookie, so there are no database writes per click either.
 export async function GET(req: NextRequest) {
   const u = req.nextUrl.searchParams.get('u') || ''
   if (!isUdemy(u)) {
@@ -29,24 +29,18 @@ export async function GET(req: NextRequest) {
 
   const settings = await getShortenerSettings()
 
-  // Off → straight to Udemy, no cookie churn.
-  if (settings.mode === 'off') {
+  // Ads disabled → straight to Udemy, no cookie churn.
+  if (!settings.websiteAds.enabled) {
     return NextResponse.redirect(u)
   }
 
-  // Clean mode → always a no-ads short link (is.gd). No rotation needed.
-  if (settings.mode === 'clean') {
-    const short = await shortenByMode(u, 'clean')
-    return NextResponse.redirect(short || u)
-  }
-
-  // Ads mode → serve the ad link only on every Nth click; the rest go direct.
+  // Ads enabled → serve the ad link only on every Nth click; the rest go direct.
   const current = parseInt(req.cookies.get(COOKIE)?.value || '0', 10)
   const clickNumber = (Number.isFinite(current) ? current : 0) + 1
 
   let dest = u
   if (shouldServeAd(clickNumber, settings)) {
-    const short = await shortenByMode(u, 'ads')
+    const short = await shortenForWebsiteAds(u)
     if (short) dest = short
   }
 
