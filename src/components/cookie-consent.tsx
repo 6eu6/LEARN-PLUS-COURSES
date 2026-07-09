@@ -2,23 +2,71 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { Cookie, ChevronDown, Check } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
+import type { Locale } from '@/lib/i18n'
 
 const KEY = 'lp-cookie-consent'
 
 type Consent = { necessary: true; analytics: boolean; ts: number }
 type Phase = 'hidden' | 'visible' | 'closing'
 
+// Bilingual strings. The banner auto-detects the locale from the URL path
+// (/en → English, /ar → Arabic) so each language shows its own version.
+const T = {
+  en: {
+    dir: 'ltr' as const,
+    message: 'We use cookies to keep the site working and to understand how it is used. You can accept all, reject optional cookies, or choose what to allow. See our',
+    privacy: 'Privacy Policy',
+    necessary: 'Necessary',
+    necessaryDesc: 'Required for the site to function.',
+    alwaysOn: 'Always on',
+    analytics: 'Analytics',
+    analyticsDesc: 'Helps us understand how the site is used.',
+    saveChoices: 'Save my choices',
+    customize: 'Customize',
+    customizeShort: 'More',
+    reject: 'Reject optional',
+    rejectShort: 'Reject',
+    acceptAll: 'Accept all',
+    switchLabel: 'Toggle analytics cookies',
+  },
+  ar: {
+    dir: 'rtl' as const,
+    message: 'نستخدم ملفات تعريف الارتباط لتشغيل الموقع وفهم كيفية استخدامه. يمكنك قبول الكل، أو رفض الكوكيز الاختيارية، أو اختيار ما تسمح به. اطّلع على',
+    privacy: 'سياسة الخصوصية',
+    necessary: 'ضرورية',
+    necessaryDesc: 'مطلوبة لعمل الموقع.',
+    alwaysOn: 'دائماً مفعّلة',
+    analytics: 'التحليلات',
+    analyticsDesc: 'تساعدنا على فهم كيفية استخدام الموقع.',
+    saveChoices: 'حفظ اختياراتي',
+    customize: 'تخصيص',
+    customizeShort: 'المزيد',
+    reject: 'رفض الاختيارية',
+    rejectShort: 'رفض',
+    acceptAll: 'قبول الكل',
+    switchLabel: 'تبديل كوكيز التحليلات',
+  },
+}
+
+function detectLocale(pathname: string | null): Locale {
+  if (!pathname) return 'en'
+  return pathname.startsWith('/ar') ? 'ar' : 'en'
+}
+
 /**
- * Liquid Glass (iOS 26 style) cookie consent banner.
- *
- * Visuals live in `globals.css` under `.liquid-glass` + the
- * `cookie-consent-enter` / `cookie-consent-exit` keyframes — the component
- * itself stays markup + behaviour only.
+ * Liquid Glass (iOS 26 style) cookie consent banner — bilingual (EN/AR).
+ * Auto-detects the locale from the URL path. Arabic shows RTL layout.
  */
 export function CookieConsent() {
+  const pathname = usePathname()
+  const locale = detectLocale(pathname)
+  const t = T[locale]
+  const dir = t.dir
+
   const [phase, setPhase] = useState<Phase>('hidden')
   const [customize, setCustomize] = useState(false)
   const [analytics, setAnalytics] = useState(true)
@@ -52,9 +100,11 @@ export function CookieConsent() {
   if (phase === 'hidden') return null
 
   const closing = phase === 'closing'
+  const privacyHref = locale === 'ar' ? '/ar/privacy' : '/en/privacy'
 
   return (
     <div
+      dir={dir}
       className="pointer-events-none fixed inset-x-0 bottom-0 z-[100] flex justify-center px-4 pb-6 sm:pb-8"
       aria-live="polite"
       aria-atomic="true"
@@ -62,7 +112,7 @@ export function CookieConsent() {
       <div
         role="dialog"
         aria-modal="false"
-        aria-label="Cookie consent"
+        aria-label={locale === 'ar' ? 'الموافقة على الكوكيز' : 'Cookie consent'}
         className={cn(
           'liquid-glass pointer-events-auto relative w-full max-w-2xl overflow-hidden rounded-[2rem] p-5 sm:p-6',
           closing ? 'cookie-consent-exit' : 'cookie-consent-enter',
@@ -78,19 +128,18 @@ export function CookieConsent() {
               <Cookie className="size-5" />
             </div>
             <p className="text-sm leading-relaxed text-foreground/80">
-              We use cookies to keep the site working and to understand how it is used. You can
-              accept all, reject optional cookies, or choose what to allow. See our{' '}
+              {t.message}{' '}
               <Link
-                href="/privacy"
+                href={privacyHref}
                 className="rounded-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
-                Privacy Policy
+                {t.privacy}
               </Link>
               .
             </p>
           </div>
 
-          {/* Customize panel — smooth height transition via the grid-rows-[0fr→1fr] trick */}
+          {/* Customize panel */}
           <div
             id="cookie-customize-panel"
             className={cn(
@@ -102,11 +151,11 @@ export function CookieConsent() {
               <div className="space-y-3 rounded-2xl border border-foreground/10 bg-foreground/[0.03] p-4">
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground">Necessary</p>
-                    <p className="text-xs text-muted-foreground">Required for the site to function.</p>
+                    <p className="text-sm font-medium text-foreground">{t.necessary}</p>
+                    <p className="text-xs text-muted-foreground">{t.necessaryDesc}</p>
                   </div>
                   <span className="shrink-0 rounded-full border border-foreground/10 bg-foreground/[0.04] px-2.5 py-1 text-xs font-medium text-foreground/60">
-                    Always on
+                    {t.alwaysOn}
                   </span>
                 </div>
 
@@ -114,13 +163,13 @@ export function CookieConsent() {
 
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground">Analytics</p>
-                    <p className="text-xs text-muted-foreground">Helps us understand how the site is used.</p>
+                    <p className="text-sm font-medium text-foreground">{t.analytics}</p>
+                    <p className="text-xs text-muted-foreground">{t.analyticsDesc}</p>
                   </div>
                   <Switch
                     checked={analytics}
                     onCheckedChange={setAnalytics}
-                    aria-label="Toggle analytics cookies"
+                    aria-label={t.switchLabel}
                   />
                 </div>
 
@@ -129,7 +178,7 @@ export function CookieConsent() {
                   className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-full bg-foreground/10 px-4 text-sm font-medium text-foreground backdrop-blur-md transition-all hover:bg-foreground/[0.14] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100"
                 >
                   <Check className="size-4 opacity-70" aria-hidden />
-                  Save my choices
+                  {t.saveChoices}
                 </button>
               </div>
             </div>
@@ -150,16 +199,16 @@ export function CookieConsent() {
                   customize && 'rotate-180',
                 )}
               />
-              <span className="hidden sm:inline">Customize</span>
-              <span className="sm:hidden">More</span>
+              <span className="hidden sm:inline">{t.customize}</span>
+              <span className="sm:hidden">{t.customizeShort}</span>
             </button>
 
             <button
               onClick={() => save({ necessary: true, analytics: false, ts: Date.now() })}
               className="inline-flex h-9 items-center justify-center rounded-full border border-foreground/15 bg-foreground/[0.02] px-2 text-xs font-medium text-foreground/80 backdrop-blur-md transition-all hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100 sm:px-3 sm:text-sm"
             >
-              <span className="hidden sm:inline">Reject optional</span>
-              <span className="sm:hidden">Reject</span>
+              <span className="hidden sm:inline">{t.reject}</span>
+              <span className="sm:hidden">{t.rejectShort}</span>
             </button>
 
             <button
@@ -170,7 +219,7 @@ export function CookieConsent() {
                 aria-hidden
                 className="size-3.5 opacity-80 transition-opacity group-hover:opacity-100 sm:size-4"
               />
-              Accept all
+              {t.acceptAll}
             </button>
           </div>
         </div>
