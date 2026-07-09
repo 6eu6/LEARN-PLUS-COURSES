@@ -72,6 +72,17 @@ function normalize(raw: Record<string, unknown> | null): DisplayAdSettings {
   }
 }
 
+// ============================================
+// Settings read + write
+// ============================================
+
+// NOTE: no unstable_cache here. Ad settings are a single primary-key lookup
+// (sub-millisecond on Accelerate), and caching caused stale data — when the
+// admin toggled ads via the bot, revalidateTag didn't purge fast enough on
+// Vercel's distributed cache, so the homepage kept serving the old (ads-off)
+// HTML for up to 10 minutes. A direct read guarantees the admin's change is
+// visible on the next page load.
+
 async function readUncached(): Promise<DisplayAdSettings> {
   try {
     const row = await db.setting.findUnique({ where: { id: SETTING_KEY } })
@@ -82,15 +93,8 @@ async function readUncached(): Promise<DisplayAdSettings> {
   }
 }
 
-// Cached: 0 DB queries in the common case. Purged on save.
-const readCached = unstable_cache(
-  readUncached,
-  ['display-ads'],
-  { tags: [TAG], revalidate: 600 },
-)
-
 export async function getAdSettings(): Promise<DisplayAdSettings> {
-  return readCached()
+  return readUncached()
 }
 
 export async function saveAdSettings(s: DisplayAdSettings): Promise<void> {
@@ -99,7 +103,8 @@ export async function saveAdSettings(s: DisplayAdSettings): Promise<void> {
     update: { value: JSON.stringify(s) },
     create: { id: SETTING_KEY, value: JSON.stringify(s) },
   })
-  try { revalidateTag(TAG, { expire: 0 }) } catch { /* non-route */ }
+  // Purge the courses cache too (ad slots are on the same pages).
+  try { revalidateTag('courses', { expire: 0 }) } catch { /* non-route */ }
 }
 
 /** Quick check for a specific zone — used by AdSlot to decide render. */
