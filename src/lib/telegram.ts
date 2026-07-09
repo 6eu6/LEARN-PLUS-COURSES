@@ -199,12 +199,16 @@ export async function postCourseToTelegramChannels(
   // batches. This keeps posting to hundreds/thousands of channels fast while
   // staying under the rate limit.
   const channelMessage = formatCourseMessageHtml(course, template);
-  // The preview URL is the FULL course page URL (not the shortened one).
-  // Telegram's crawler fetches it to read og:image / og:title / og:description
-  // and renders a rich preview card with the course image — no image upload.
+  // Preview URL = the course IMAGE URL directly (not the page URL). Telegram's
+  // crawler fetches it and shows ONLY the image in the preview card — no title,
+  // no description (because it's a direct image, not an HTML page with og: tags).
+  // This keeps the preview clean: just the course image above the text, nothing
+  // else. Falls back to the page URL if no image is available.
+  const imageUrl = String(course.image_url || course.imageUrl || '');
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || '';
   const slug = String(course.slug || '');
-  const previewUrl = (siteUrl && slug) ? `${siteUrl}${localizedCoursePath(locale, slug)}` : '';
+  const pageUrl = (siteUrl && slug) ? `${siteUrl}${localizedCoursePath(locale, slug)}` : '';
+  const previewUrl = (imageUrl && /^https?:\/\//i.test(imageUrl)) ? imageUrl : pageUrl;
   const active = channels.filter((c) => c.active && c.id);
   const CHUNK = 25;
   const PACE_MS = 1100;
