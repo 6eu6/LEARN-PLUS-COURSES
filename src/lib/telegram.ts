@@ -17,57 +17,36 @@ type TelegramChannel = { id: string; active: boolean; name: string; language: st
 // Send Message (with optional reply_markup)
 // ============================================
 
+// Send a text message with a rich link preview. Telegram's crawler fetches
+// the page at `previewUrl`, reads its og:image / og:title / og:description,
+// and renders a preview card with the course image — so we get the photo for
+// free without uploading image bytes (faster, no CDN dependency, no 403s).
 async function sendMessage(
   botToken: string,
   chatId: string,
   text: string,
   parseMode: string = 'HTML',
-  replyMarkup?: Record<string, unknown>
+  replyMarkup?: Record<string, unknown>,
+  previewUrl?: string,
 ): Promise<boolean> {
   try {
     const body: Record<string, unknown> = {
       chat_id: chatId,
       text,
       parse_mode: parseMode,
-      disable_web_page_preview: false,
+      // link_preview_options (Telegram Bot API 7+) explicitly tells Telegram
+      // which URL to preview, regardless of where it appears in the text. This
+      // is more reliable than disable_web_page_preview + a raw URL in the body.
+      link_preview_options: {
+        url: previewUrl || '',
+        prefer_large_media: true,
+        show_above_text: false,
+      },
     };
     if (replyMarkup) {
       body.reply_markup = replyMarkup;
     }
     const response = await fetch(`${TELEGRAM_API}/bot${botToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(15000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
-// Send a photo with a caption (HTML). Falls back to sendMessage if the photo URL
-// is missing or the sendPhoto call fails, so a post is never lost just because
-// the image is unavailable.
-async function sendPhoto(
-  botToken: string,
-  chatId: string,
-  photoUrl: string,
-  caption: string,
-  parseMode: string = 'HTML',
-  replyMarkup?: Record<string, unknown>
-): Promise<boolean> {
-  try {
-    const body: Record<string, unknown> = {
-      chat_id: chatId,
-      photo: photoUrl,
-      caption,
-      parse_mode: parseMode,
-    };
-    if (replyMarkup) {
-      body.reply_markup = replyMarkup;
-    }
-    const response = await fetch(`${TELEGRAM_API}/bot${botToken}/sendPhoto`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -220,7 +199,12 @@ export async function postCourseToTelegramChannels(
   // batches. This keeps posting to hundreds/thousands of channels fast while
   // staying under the rate limit.
   const channelMessage = formatCourseMessageHtml(course, template);
-  const imageUrl = String(course.image_url || course.imageUrl || '');
+  // The preview URL is the FULL course page URL (not the shortened one).
+  // Telegram's crawler fetches it to read og:image / og:title / og:description
+  // and renders a rich preview card with the course image — no image upload.
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || '';
+  const slug = String(course.slug || '');
+  const previewUrl = (siteUrl && slug) ? `${siteUrl}${localizedCoursePath(locale, slug)}` : '';
   const active = channels.filter((c) => c.active && c.id);
   const CHUNK = 25;
   const PACE_MS = 1100;
@@ -234,18 +218,7 @@ export async function postCourseToTelegramChannels(
     }
     const batch = active.slice(i, i + CHUNK);
     const results = await Promise.allSettled(
-      batch.map(async (channel) => {
-        // Prefer sendPhoto when an image is available — the course card shows
-        // up as a rich photo post in the channel instead of a plain text blob.
-        if (imageUrl && /^https?:\/\//i.test(imageUrl)) {
-          const ok = await sendPhoto(botToken, channel.id, imageUrl, channelMessage, 'HTML', keyboard);
-          if (ok) return true;
-          // Fallback to text-only if the photo URL is rejected (e.g. expired
-          // Udemy CDN link) so the post is never lost.
-          return sendMessage(botToken, channel.id, channelMessage, 'HTML', keyboard);
-        }
-        return sendMessage(botToken, channel.id, channelMessage, 'HTML', keyboard);
-      }),
+      batch.map((channel) => sendMessage(botToken, channel.id, channelMessage, 'HTML', keyboard, previewUrl)),
     );
     results.forEach((r, j) => {
       const channel = batch[j];
