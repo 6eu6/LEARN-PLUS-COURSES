@@ -3,41 +3,58 @@
 import { useEffect, useState, useRef } from 'react'
 import { cn } from '@/lib/utils'
 
-// Display ad slot — safe, lazy, reserved-space.
-//
-// Props:
-//   zone: which ad zone this is (matches lib/ads.ts AdZone).
-//   settings: the ad config passed from the server (so no client-side fetch).
+// Display ad slot — fetches its own config client-side so admin toggles take
+// effect instantly without depending on page cache (ISR/edge) purging.
 //
 // Safety guarantees:
-//   1. If settings.enabled is false OR the zone is disabled → renders nothing.
-//   2. If the provider script fails / ad-blocker blocks → the container
-//      collapses to 0 height.
-//   3. Reserved min-height only while loading, so enabling ads later causes
-//      ZERO layout shift (CLS = 0).
-//   4. Loaded via IntersectionObserver — the ad script only fires when the
-//      slot scrolls into view, so above-the-fold performance is unaffected.
-//   5. Never throws — all provider calls are wrapped in try/catch.
+//   1. If settings.enabled=false OR provider='none' OR zone disabled → renders nothing.
+//   2. If the provider script fails / ad-blocker blocks → graceful collapse.
+//   3. Reserved min-height only while loading (CLS = 0).
+//   4. Lazy: ad script fires only when slot enters viewport.
+//   5. Never throws — all provider calls wrapped in try/catch.
+
+interface AdSettings {
+  provider: string
+  enabled: boolean
+  clientId?: string
+  slots: Record<string, { enabled: boolean; slotId?: string }>
+}
 
 interface AdSlotProps {
   zone: string
-  settings: {
-    provider: string
-    enabled: boolean
-    clientId?: string
-    slots: Record<string, { enabled: boolean; slotId?: string }>
-  } | null
+  /** Server-side settings (used as initial state, overridden by client fetch). */
+  settings?: AdSettings | null
   className?: string
 }
 
-export function AdSlot({ zone, settings, className }: AdSlotProps) {
+export function AdSlot({ zone, settings: initialSettings, className }: AdSlotProps) {
+  const [settings, setSettings] = useState<AdSettings | null>(initialSettings ?? null)
+  const [fetched, setFetched] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const adHostRef = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
   const [loaded, setLoaded] = useState(false)
 
+  // Fetch fresh ad config on mount. This bypasses page cache entirely — the
+  // admin's toggle is reflected on the next page load.
+  useEffect(() => {
+    if (initialSettings) {
+      // If server provided settings, still fetch fresh ones to catch admin
+      // toggles that happened after the page was cached.
+      setFetched(true)
+    }
+    fetch('/api/ads/config')
+      .then((r) => r.json())
+      .then((s: AdSettings) => {
+        setSettings(s)
+        setFetched(true)
+      })
+      .catch(() => setFetched(true))
+  }, [initialSettings])
+
   const zoneConfig = settings?.slots?.[zone]
   const shouldRender =
+    fetched &&
     settings?.enabled === true &&
     settings.provider !== 'none' &&
     zoneConfig?.enabled === true
@@ -60,8 +77,7 @@ export function AdSlot({ zone, settings, className }: AdSlotProps) {
     return () => obs.disconnect()
   }, [shouldRender])
 
-  // When visible, inject the provider script. Wrapped so a failure never
-  // crashes the page — the slot just stays empty.
+  // When visible, inject the provider script.
   useEffect(() => {
     if (!visible || loaded) return
     const host = adHostRef.current
@@ -80,7 +96,6 @@ export function AdSlot({ zone, settings, className }: AdSlotProps) {
         ins.setAttribute('data-ad-format', 'auto')
         ins.setAttribute('data-full-width-responsive', 'true')
         host.appendChild(ins)
-        // Load adsbygoogle library once.
         const w = window as unknown as { adsbygoogle?: unknown[] }
         if (!w.adsbygoogle) {
           const s = document.createElement('script')
@@ -92,24 +107,19 @@ export function AdSlot({ zone, settings, className }: AdSlotProps) {
         try {
           w.adsbygoogle = w.adsbygoogle || []
           w.adsbygoogle.push({})
-        } catch {
-          /* push failed — ad just won't render */
-        }
+        } catch { /* push failed */ }
         setLoaded(true)
       } else if (provider === 'adsterra' && slotId) {
-        // Adsterra gives a full script URL per banner.
         const s = document.createElement('script')
         s.async = true
         s.src = slotId
         host.appendChild(s)
         setLoaded(true)
       }
-    } catch {
-      /* ad failed to load — slot stays empty, no crash */
-    }
+    } catch { /* ad failed — slot stays empty */ }
   }, [visible, loaded, settings, zoneConfig])
 
-  // Disabled → render nothing (0 bytes added to the page).
+  // Disabled or not yet fetched → render nothing.
   if (!shouldRender) return null
 
   return (
@@ -118,8 +128,6 @@ export function AdSlot({ zone, settings, className }: AdSlotProps) {
       data-ad-zone={zone}
       className={cn(
         'relative w-full overflow-hidden rounded-xl',
-        // min-h only while loading; once loaded the ad fills its own height.
-        // If ad-blocker blocks, the host stays empty → container collapses.
         loaded ? 'min-h-[90px]' : 'min-h-[0px]',
         className,
       )}
