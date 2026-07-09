@@ -130,7 +130,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background" dir="ltr">
+    <div className="admin-bg min-h-screen" dir="ltr">
       <HideCookieBanner />
       {/* Top bar */}
       <header className="liquid-glass sticky top-0 z-50 mx-3 mt-3 rounded-3xl">
@@ -213,7 +213,7 @@ function LoginScreen({ password, setPassword, onSubmit, error, theme, setTheme }
   error: string; theme: Theme; setTheme: (t: Theme) => void
 }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="admin-bg flex min-h-screen items-center justify-center p-4">
       <div className="liquid-glass w-full max-w-sm rounded-3xl p-6">
         <div className="relative z-[1] space-y-4">
           <div className="text-center">
