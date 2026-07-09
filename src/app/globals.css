@@ -331,22 +331,38 @@ main > div.text-center.pt-4.pb-8 > a[href="/"]:hover {
    Liquid Glass buttons — for the Admin Mini App
    ========================================================= */
 @layer components {
-  /* Admin background — a soft gradient so the Liquid Glass cards have
-     something to blur against (solid backgrounds make blur invisible). */
+  /* Admin background — colorful blobs so the Liquid Glass cards have
+     something distinct to blur against (blur is invisible on solid bg). */
   .admin-bg {
-    background:
-      radial-gradient(ellipse at 20% 0%, color-mix(in oklch, var(--foreground) 12%, transparent), transparent 60%),
-      radial-gradient(ellipse at 80% 100%, color-mix(in oklch, var(--foreground) 8%, transparent), transparent 60%),
-      var(--background);
-    background-attachment: fixed;
+    position: relative;
+    background: var(--background);
     min-height: 100vh;
+    overflow-x: hidden;
   }
-  .dark .admin-bg {
-    background:
-      radial-gradient(ellipse at 20% 0%, color-mix(in oklch, var(--foreground) 8%, transparent), transparent 60%),
-      radial-gradient(ellipse at 80% 100%, color-mix(in oklch, var(--foreground) 5%, transparent), transparent 60%),
-      var(--background);
+  .admin-bg::before,
+  .admin-bg::after {
+    content: "";
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.5;
+    pointer-events: none;
+    z-index: 0;
   }
+  .admin-bg::before {
+    width: 400px; height: 400px;
+    top: -100px; left: -100px;
+    background: color-mix(in oklch, var(--foreground) 30%, transparent);
+  }
+  .admin-bg::after {
+    width: 500px; height: 500px;
+    bottom: -150px; right: -150px;
+    background: color-mix(in oklch, var(--foreground) 20%, transparent);
+  }
+  .dark .admin-bg::before { opacity: 0.25; }
+  .dark .admin-bg::after { opacity: 0.2; }
+  /* Ensure content sits above the blobs */
+  .admin-bg > * { position: relative; z-index: 1; }
 
   .glass-btn {
     border: 1px solid color-mix(in oklch, var(--foreground) 15%, transparent);

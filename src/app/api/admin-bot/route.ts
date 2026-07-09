@@ -16,11 +16,6 @@ const LANGS = ['en', 'ar', 'es', 'fr', 'pt', 'tr', 'hi', 'zh', 'ja', 'ko', 'de',
 
 type Btn = { text: string; callback_data?: string; web_app?: { url: string } };
 type Keyboard = { inline_keyboard: Btn[][] };
-type ReplyKeyboard = {
-  keyboard: { text: string }[][];
-  resize_keyboard: boolean;
-  is_persistent: boolean;
-};
 
 // --------------------------------------------------------------------
 // Low-level Telegram helpers
@@ -122,67 +117,36 @@ async function clearState(chatId: string): Promise<void> {
 // --------------------------------------------------------------------
 // Keyboard builders
 // --------------------------------------------------------------------
+// The bot is now a single-button launcher: one inline button opens the
+// Dashboard Mini App. No reply keyboard, no multi-section inline menus —
+// all control lives inside the Mini App (/admin) to avoid clutter.
+
+const DASHBOARD_URL = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.learn-plus.uk'}/admin`
 
 const mainMenu: Keyboard = {
   inline_keyboard: [
-    [{ text: '🎛️ Open Dashboard', web_app: { url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.learn-plus.uk'}/admin` } }],
-    [{ text: '📊 Statistics', callback_data: 'nav:stats' }, { text: '🔄 Scraper', callback_data: 'nav:scrape' }],
-    [{ text: '📡 Channels', callback_data: 'nav:chan' }, { text: '📤 Posting', callback_data: 'nav:post' }],
-    [{ text: '📝 Templates', callback_data: 'nav:tpl' }, { text: '🧹 Cleanup', callback_data: 'nav:clean' }],
-    [{ text: '📨 Broadcast', callback_data: 'ask:bcast' }, { text: '⚙️ Settings', callback_data: 'nav:set' }],
-    [{ text: '🔗 Links', callback_data: 'nav:short' }, { text: '📺 Ads', callback_data: 'nav:ads' }],
-    [{ text: '📖 Guide', callback_data: 'nav:guide' }],
+    [{ text: '🎛️ Open Dashboard', web_app: { url: DASHBOARD_URL } }],
   ],
 };
 
 const backRow = (to = 'nav:main'): Btn[] => [{ text: '⬅️ Back', callback_data: to }];
 
-// Persistent Reply Keyboard shown under the message input — the MAIN MENU.
-// English only. Each button sends a normal text message handled below.
-const mainReplyKeyboard: ReplyKeyboard = {
-  keyboard: [
-    [{ text: '📊 Statistics' }, { text: '📤 Posting' }],
-    [{ text: '📡 Channels' }, { text: '🔄 Scraper' }],
-    [{ text: '📝 Templates' }, { text: '🧹 Cleanup' }],
-    [{ text: '➕ Add Channel' }, { text: '📨 Broadcast' }],
-    [{ text: '⚙️ Settings' }, { text: '🔗 Links' }],
-    [{ text: '📖 Help' }],
-  ],
-  resize_keyboard: true,
-  is_persistent: true,
-};
-
-// Send a message that (re)attaches the persistent reply keyboard to the chat.
-function sendWithReplyKeyboard(chatId: string, text: string) {
+// Send the welcome message + the single dashboard button.
+function sendDashboardButton(chatId: string, text?: string) {
   return tg('sendMessage', {
     chat_id: chatId,
-    text,
+    text: text || welcomeText(),
     parse_mode: 'HTML',
     disable_web_page_preview: true,
-    reply_markup: mainReplyKeyboard,
+    reply_markup: mainMenu,
   });
 }
 
 function welcomeText(): string {
   return (
-    `🎛️ <b>Learn Plus Courses — Admin Control Panel</b>\n\n` +
-    `Use the keyboard below to manage everything. Tap a button to open a section.`
-  );
-}
-
-function helpText(): string {
-  return (
-    `📖 <b>Help</b>\n\n` +
-    `Use the keyboard below the input box:\n\n` +
-    `📊 <b>Statistics</b> — course & posting stats\n` +
-    `📤 <b>Posting</b> — auto-post on/off, post now, delay\n` +
-    `📡 <b>Channels</b> — list, enable/disable, language, remove\n` +
-    `🔄 <b>Scraper</b> — run the scraper now\n` +
-    `📝 <b>Templates</b> — edit EN/AR post templates\n` +
-    `🧹 <b>Cleanup</b> — remove duplicates/invalid, purge\n` +
-    `➕ <b>Add Channel</b> — guided: name → @handle/id → language\n` +
-    `📨 <b>Broadcast</b> — send a message to all active channels\n` +
-    `⚙️ <b>Settings</b> — site name, description, courses per page`
+    `🎛️ <b>Learn Plus Courses — Admin</b>\n\n` +
+    `Tap the button below to open the dashboard.\n` +
+    `Everything is controlled from there.`
   );
 }
 
@@ -667,7 +631,7 @@ async function handleCallback(chatId: string, messageId: number, data: string, c
   const { getTelegramSettings, saveTelegramSettings, cleanupInvalidCourses, purgeAllCourses } = await import('@/lib/queries');
 
   // Navigation
-  if (data === 'nav:main') { await answerCallback(cbId); return sendWithReplyKeyboard(chatId, '⌨️ Main menu — use the keyboard below.'); }
+  if (data === 'nav:main') { await answerCallback(cbId); return sendDashboardButton(chatId, 'Welcome. Tap the button to open the dashboard.'); }
   if (data === 'nav:stats') { await answerCallback(cbId); const v = await viewStats(); return editMessage(chatId, messageId, v.text, v.keyboard); }
   if (data === 'nav:scrape') { await answerCallback(cbId); const v = viewScrape(); return editMessage(chatId, messageId, v.text, v.keyboard); }
   if (data === 'nav:clean') { await answerCallback(cbId); const v = viewClean(); return editMessage(chatId, messageId, v.text, v.keyboard); }
@@ -1057,7 +1021,7 @@ async function handleMenuLabel(chatId: string, text: string): Promise<boolean> {
       return true;
     }
     case '📖 Help': {
-      await sendWithReplyKeyboard(chatId, helpText());
+      await sendDashboardButton(chatId, welcomeText());
       return true;
     }
     default:
@@ -1101,9 +1065,9 @@ export async function POST(request: Request) {
       const cmd = text.split(' ')[0].toLowerCase();
       if (cmd === '/start' || cmd === '/menu') {
         await clearState(chatId);
-        await sendWithReplyKeyboard(chatId, welcomeText());
+        await sendDashboardButton(chatId, welcomeText());
       } else if (cmd === '/help') {
-        await sendWithReplyKeyboard(chatId, helpText());
+        await sendDashboardButton(chatId, welcomeText());
       } else if (cmd === '/stats') {
         const v = await viewStats(); await sendMessage(chatId, v.text, v.keyboard);
       } else if (cmd === '/scrape') {
@@ -1111,7 +1075,7 @@ export async function POST(request: Request) {
       } else if (cmd === '/post') {
         await postNow(chatId);
       } else {
-        await sendWithReplyKeyboard(chatId, '❓ Unknown command. Use the keyboard below.');
+        await sendDashboardButton(chatId, '❓ Unknown command. Tap the button to open the dashboard.');
       }
       return NextResponse.json({ ok: true });
     }
@@ -1121,7 +1085,7 @@ export async function POST(request: Request) {
     if (state) { await processInput(chatId, state.action, state.extra, text); return NextResponse.json({ ok: true }); }
 
     // 4) Fallback — re-show the persistent keyboard.
-    await sendWithReplyKeyboard(chatId, '⌨️ Use the keyboard below to control the bot.');
+    await sendDashboardButton(chatId, 'Welcome. Tap the button to open the dashboard.');
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error('[AdminBot] Error:', e);
