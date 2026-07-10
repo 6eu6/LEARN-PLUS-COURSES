@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, Youtube } from "lucide-react"
 import { LogoMark } from "@/components/logo"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { LocaleSwitch } from "@/components/locale-switch"
@@ -27,7 +27,7 @@ export function SiteHeader({
   const t = makeT(locale)
   return (
     <header dir="ltr" className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-sm">
-      <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
+      <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
         {/* LEFT: logo + brand (always left) */}
         <Link href={homeHref} className="flex min-w-0 items-center gap-2 text-sm font-semibold">
           <LogoMark className="h-5 w-5 shrink-0" />
@@ -53,6 +53,7 @@ export function SiteHeader({
 
 const SOCIAL = {
   x: "https://x.com/learnplusfree",
+  youtube: "https://youtube.com/@lp_courses",
   bot: "https://t.me/FreeLearningHub_P_bot",
   channel: "https://t.me/LPCourse",
   channelAr: "https://t.me/ArLearnPlus",
@@ -86,7 +87,7 @@ export function SiteFooter({ locale = "en" }: { locale?: Locale }) {
     "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
   return (
     <footer className="border-t mt-auto" dir={localeDir(locale)}>
-      <div className="max-w-3xl mx-auto px-4 py-8 text-center text-xs text-muted-foreground space-y-5">
+      <div className="max-w-6xl mx-auto px-4 py-8 text-center text-xs text-muted-foreground space-y-5">
         {/* Brand */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-center gap-1.5">
@@ -109,6 +110,9 @@ export function SiteFooter({ locale = "en" }: { locale?: Locale }) {
           </a>
           <a href={SOCIAL.x} target="_blank" rel="noopener noreferrer" className={channel}>
             <XIcon /> {t("x")}
+          </a>
+          <a href={SOCIAL.youtube} target="_blank" rel="noopener noreferrer" className={channel}>
+            <Youtube className="h-4 w-4" aria-hidden /> {t("youtube")}
           </a>
         </div>
 
