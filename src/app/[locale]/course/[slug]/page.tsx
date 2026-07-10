@@ -117,6 +117,11 @@ export default async function LocalizedCoursePage({ params }: PageProps) {
   // Ad config (cached). When disabled, AdSlot renders nothing.
   const adSettings = await getAdSettings()
 
+  const couponIsCurrent =
+    course.isFreeForever ||
+    (course.couponVerified &&
+      (!course.couponExpiresAt || new Date(course.couponExpiresAt).getTime() > Date.now()))
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Course',
@@ -126,7 +131,20 @@ export default async function LocalizedCoursePage({ params }: PageProps) {
     inLanguage: locale,
     ...(course.imageUrl ? { image: course.imageUrl } : {}),
     provider: { '@type': 'Organization', name: 'Udemy', sameAs: 'https://www.udemy.com' },
-    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', category: 'Free', availability: 'https://schema.org/InStock' },
+    ...(couponIsCurrent
+      ? {
+          offers: {
+            '@type': 'Offer',
+            price: '0',
+            priceCurrency: 'USD',
+            category: 'Coupon',
+            availability: 'https://schema.org/InStock',
+            ...(course.couponExpiresAt
+              ? { priceValidUntil: new Date(course.couponExpiresAt).toISOString().slice(0, 10) }
+              : {}),
+          },
+        }
+      : {}),
   }
 
   return (
