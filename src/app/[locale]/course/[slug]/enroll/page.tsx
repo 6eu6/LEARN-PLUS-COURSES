@@ -10,8 +10,7 @@ import { TelegramChannelButton } from '@/components/telegram-cta'
 import { BulletList } from '@/components/bullet-list'
 import { SiteHeader, SiteFooter } from '@/components/site-chrome'
 import { ReportBrokenLinkButton } from '@/components/report-broken-link-button'
-import { AdSlot } from '@/components/ad-slot'
-import { getAdSettings } from '@/lib/ads'
+import { EnrollGuide } from '@/components/enroll-guide'
 
 interface PageProps {
   params: Promise<{ locale: string; slug: string }>
@@ -63,29 +62,21 @@ export default async function LocalizedEnrollPage({ params }: PageProps) {
   // Route the outbound click through /api/go, which decides per-visitor whether
   // to go direct or via the (ad-bearing) shortener, per the admin settings.
   const startUrl = `/api/go?u=${encodeURIComponent(udemyUrl)}`
-  // Ad config (cached). When disabled, AdSlot renders nothing.
-  const adSettings = await getAdSettings()
-
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col" lang={locale} dir={dir}>
       <SiteHeader homeHref={base} backHref={`${base}/course/${data.localizedSlug}`} backLabel={t('courseDetails')} backShort={t('courseDetails')} locale={locale} />
 
-      <main className="max-w-3xl mx-auto w-full px-4 py-6 space-y-5">
-        <div className="relative aspect-[1600/746] rounded-xl border bg-card p-1 shadow-sm overflow-hidden">
-          <img
-            src="/enroll-guide-hero.svg?v=20260607-balanced"
-            alt={data.localizedTitle}
-            className="h-full w-full rounded-lg object-contain"
-          />
-        </div>
+      <main className="mx-auto w-full max-w-5xl space-y-5 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <EnrollGuide locale={locale} />
 
         <div className="rounded-lg border bg-card p-4 text-center space-y-1">
           <h2 className="font-bold text-sm">{t('almostThere')}</h2>
           <p className="text-[11px] text-muted-foreground">{t('almostThereDesc')}</p>
         </div>
 
+        <div className="grid gap-4 lg:grid-cols-2">
         {data.localizedDescription && (
-          <section className="p-4 rounded-lg border bg-card">
+          <section className="rounded-lg border bg-card p-4">
             <h3 className="text-xs font-semibold mb-2">{t('aboutCourse')}</h3>
             <BulletList text={data.localizedDescription} />
           </section>
@@ -103,23 +94,23 @@ export default async function LocalizedEnrollPage({ params }: PageProps) {
           </section>
         )}
         {data.localizedWhoFor && (
-          <section className="p-4 rounded-lg border bg-card">
-            <h3 className="text-xs font-semibold mb-2">{t('whoFor')}</h3>
+          <section className="rounded-lg border bg-card p-4">
+            <h3 className="mb-2 text-xs font-semibold">{t('whoFor')}</h3>
             <BulletList text={data.localizedWhoFor} />
           </section>
         )}
+        </div>
 
-        <div className="space-y-3">
-          {/* Ad slot — enroll page. Renders nothing when disabled. */}
-          <AdSlot zone="enroll_page" settings={adSettings} />
+        <div className="mx-auto w-full max-w-2xl space-y-3">
           <TimedReveal
-            seconds={25}
+            seconds={3}
             loadingText={t('preparingLink')}
+            countdownText={t('waitSeconds')}
             buttonText={t('startOnUdemy')}
             href={startUrl}
             external
           />
-          <TelegramChannelButton label={t('followChannel')} />
+          <TelegramChannelButton label={t('followChannel')} locale={locale} />
           <ReportBrokenLinkButton slug={course.slug} title={data.localizedTitle} />
         </div>
 

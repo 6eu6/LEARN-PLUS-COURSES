@@ -20,10 +20,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://www.learn-plus.uk'),
   title: {
-    default: "Learn Plus Courses — Free Udemy Courses",
+    default: "Learn Plus Courses — Free Udemy Coupons",
     template: "%s | Learn Plus Courses",
   },
-  description: "Discover the best free Udemy courses with active coupons, refreshed automatically. Browse, search, and enroll for free.",
+  description: "Discover curated Udemy coupon offers, refreshed automatically. Browse course details and confirm the final price on Udemy.",
   keywords: ["free courses", "udemy", "online learning", "free udemy courses", "udemy coupons", "learn plus"],
   applicationName: "Learn Plus Courses",
   alternates: { canonical: "/" },
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "Learn Plus Courses",
-    description: "Discover the best free Udemy courses. Automatically updated from multiple sources.",
+    description: "Discover curated Udemy coupon offers, automatically updated from multiple sources.",
     siteName: "Learn Plus Courses",
     type: "website",
     locale: "en_US",

@@ -123,18 +123,12 @@ function formatCourseMessageHtml(
     duration: escapeHtml(localizeDuration(cleanValue(course.duration), locale)),
     category: escapeHtml(cleanValue(course.category)),
     // {link} and {cta} are blue, tappable anchors — never the raw URL as text.
-    link: courseUrl ? `<a href="${escapeHtml(courseUrl)}">${locale === 'ar' ? 'انقر هنا للحصول على الكورس' : 'Click here to get the course'}</a>` : '',
+    link: courseUrl ? `<a href="${escapeHtml(courseUrl)}">${locale === 'ar' ? 'عرض تفاصيل الكوبون' : 'View coupon details'}</a>` : '',
     cta: `<a href="${escapeHtml(CONTACT_BOT_URL)}">${locale === 'ar' ? 'أضف خدمة الدورات التلقائية لقناتك أو قروبك — انقر هنا' : 'Add the auto-courses service to your channel/group — click here'}</a>`,
   };
 
   const tpl = template && template.trim() ? template : (locale === 'ar' ? DEFAULT_TEMPLATES.ar : DEFAULT_TEMPLATES.en);
-  let out = renderTemplate(tpl, values);
-  // Ensure the "add to your channel" CTA always appears, even on older custom
-  // templates that don't include the {cta} placeholder.
-  if (!out.includes(CONTACT_BOT_URL)) {
-    out += `\n➕ ${values.cta}`;
-  }
-  return out;
+  return renderTemplate(tpl, values);
 }
 
 // Build inline keyboard button pointing to site course page
@@ -149,7 +143,7 @@ function buildInlineKeyboard(course: Record<string, unknown>, locale: Locale = '
     inline_keyboard: [
       [
         {
-          text: locale === 'ar' ? '🚀 ابدأ مجانًا' : '🚀 Enroll Free',
+          text: locale === 'ar' ? '🎟️ عرض الكوبون' : '🎟️ View Coupon',
           url: courseUrl,
         },
       ],

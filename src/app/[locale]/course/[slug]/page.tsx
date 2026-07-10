@@ -117,6 +117,11 @@ export default async function LocalizedCoursePage({ params }: PageProps) {
   // Ad config (cached). When disabled, AdSlot renders nothing.
   const adSettings = await getAdSettings()
 
+  const couponIsCurrent =
+    course.isFreeForever ||
+    (course.couponVerified &&
+      (!course.couponExpiresAt || new Date(course.couponExpiresAt).getTime() > Date.now()))
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Course',
@@ -126,7 +131,20 @@ export default async function LocalizedCoursePage({ params }: PageProps) {
     inLanguage: locale,
     ...(course.imageUrl ? { image: course.imageUrl } : {}),
     provider: { '@type': 'Organization', name: 'Udemy', sameAs: 'https://www.udemy.com' },
-    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', category: 'Free', availability: 'https://schema.org/InStock' },
+    ...(couponIsCurrent
+      ? {
+          offers: {
+            '@type': 'Offer',
+            price: '0',
+            priceCurrency: 'USD',
+            category: 'Coupon',
+            availability: 'https://schema.org/InStock',
+            ...(course.couponExpiresAt
+              ? { priceValidUntil: new Date(course.couponExpiresAt).toISOString().slice(0, 10) }
+              : {}),
+          },
+        }
+      : {}),
   }
 
   return (
@@ -134,8 +152,8 @@ export default async function LocalizedCoursePage({ params }: PageProps) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <SiteHeader homeHref={base} backHref={base} backLabel={t('home')} backShort={t('home')} locale={locale} />
 
-      <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        <div className="relative aspect-[16/7] bg-muted rounded-xl overflow-hidden">
+      <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <div className="relative aspect-video overflow-hidden rounded-xl bg-muted">
           <CourseImage src={course.imageUrl || PLACEHOLDER_IMG} alt={data.localizedTitle} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
           <div className="absolute top-3 left-3 flex gap-1.5 flex-wrap">
@@ -151,7 +169,7 @@ export default async function LocalizedCoursePage({ params }: PageProps) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
           {course.instructor && (
             <div className="flex items-center gap-2 p-2.5 bg-card rounded-lg border text-xs">
               <div className="min-w-0">
@@ -219,19 +237,19 @@ export default async function LocalizedCoursePage({ params }: PageProps) {
             <p className="text-[11px] text-muted-foreground">{t('getCourseFreeDesc')}</p>
           </div>
           <TimedReveal
-            seconds={10}
+            seconds={0}
             loadingText={t('preparingLink')}
             buttonText={t('continueCourse')}
             href={`${base}/course/${data.localizedSlug}/enroll`}
           />
-          <TelegramChannelButton label={t('joinChannel')} />
+          <TelegramChannelButton label={t('joinChannel')} locale={locale} />
           <ShareButtons url={`${SITE}/${locale}/course/${data.localizedSlug}`} title={data.localizedTitle} />
         </div>
 
         {related.length > 0 && (
           <div>
             <h3 className="text-xs font-semibold mb-3">{t('relatedCourses')}</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {related.map((rc) => (
                 <Link key={rc.id} href={`${base}/course/${rc.localizedSlug}`} className="block overflow-hidden rounded-lg border bg-card hover:shadow-md hover:border-border transition-all group">
                   <div className="relative aspect-[16/9] bg-muted">

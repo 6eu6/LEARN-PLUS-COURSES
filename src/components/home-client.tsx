@@ -137,10 +137,10 @@ function CourseCard(props: { course: Course; t: TxFn; locale: Locale; onClick: (
 
   return (
     <Card
-      className="overflow-hidden group cursor-pointer border bg-card hover:shadow-md hover:border-border dark:hover:border-border transition-all"
+      className="group h-full cursor-pointer overflow-hidden border bg-card transition-all hover:border-border hover:shadow-md dark:hover:border-border"
       onClick={onClick}
     >
-      <div className="relative aspect-[16/10] bg-muted overflow-hidden">
+      <div className="relative aspect-video overflow-hidden bg-muted">
         <img
           src={course.image_url}
           alt={course.title}
@@ -179,11 +179,11 @@ function CourseCard(props: { course: Course; t: TxFn; locale: Locale; onClick: (
         </div>
       </div>
 
-      <CardContent className="p-3 space-y-2">
-        <h3 className="font-medium text-[13px] line-clamp-2 group-hover:text-muted-foreground dark:group-hover:text-muted-foreground transition-colors leading-snug">
+      <CardContent className="flex min-h-[9.25rem] flex-col gap-2 p-3">
+        <h3 className="min-h-[2.5rem] text-[13px] font-medium leading-snug line-clamp-2 transition-colors group-hover:text-muted-foreground dark:group-hover:text-muted-foreground">
           {course.title}
         </h3>
-        <div className="flex items-center justify-between gap-1.5 text-[11px] text-muted-foreground">
+        <div className="flex min-h-5 items-center justify-between gap-1.5 text-[11px] text-muted-foreground">
           {course.instructor && (
             <span className="flex items-center gap-1 truncate">
               <User className="h-3 w-3 shrink-0" />
@@ -192,7 +192,7 @@ function CourseCard(props: { course: Course; t: TxFn; locale: Locale; onClick: (
           )}
           <CouponBadge isFreeForever={course.isFreeForever} couponExpiresAt={course.couponExpiresAt} t={t} />
         </div>
-        <span className="mt-1 flex w-full items-center justify-center rounded-lg bg-foreground py-2 text-xs font-semibold text-background transition-opacity group-hover:opacity-90">
+        <span className="mt-auto flex w-full items-center justify-center rounded-lg bg-foreground py-2 text-xs font-semibold text-background transition-opacity group-hover:opacity-90">
           {t('details')}
         </span>
       </CardContent>
@@ -323,7 +323,7 @@ export function HomeClient({ locale, basePath, adSettings }: { locale: Locale; b
   return (
     <div className="min-h-screen bg-background flex flex-col" lang={locale} dir={dir}>
       <header dir="ltr" className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-4 py-2.5 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between">
           <button onClick={() => router.push(homeHref)} className="flex items-center gap-2">
             <LogoMark className="h-6 w-6" />
             <span className="font-bold text-sm tracking-tight">
@@ -346,8 +346,8 @@ export function HomeClient({ locale, basePath, adSettings }: { locale: Locale; b
       </header>
 
       <main className="flex-1">
-        <div className="max-w-5xl mx-auto px-4 py-5 space-y-5">
-          <div className="flex gap-2 max-w-lg mx-auto">
+        <div className="mx-auto max-w-7xl space-y-6 px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+          <div className="mx-auto flex max-w-2xl gap-2">
             <div className="relative flex-1">
               <Search className="absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground left-3" />
               <Input
@@ -414,7 +414,7 @@ export function HomeClient({ locale, basePath, adSettings }: { locale: Locale; b
           <AdSlot zone="home_banner" settings={adSettings} />
 
           {loading ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {Array.from({ length: 6 }).map((_, i) => (
                 <Card key={i} className="overflow-hidden">
                   <Skeleton className="h-40 w-full" />
@@ -433,13 +433,13 @@ export function HomeClient({ locale, basePath, adSettings }: { locale: Locale; b
             </div>
           ) : (
             <>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {courses.map((course, idx) => (
                   <Fragment key={course.id}>
                     <CourseCard course={course} t={t} locale={locale} onClick={() => openCourseDetail(course.slug)} />
                     {/* Native ad after the 3rd card (end of first row on desktop). Renders nothing when disabled. */}
-                    {idx === 2 && (
-                      <div className="sm:col-span-2 lg:col-span-3">
+                    {idx === 3 && (
+                      <div className="sm:col-span-2 lg:col-span-3 xl:col-span-4">
                         <AdSlot zone="home_between" settings={adSettings} />
                       </div>
                     )}
