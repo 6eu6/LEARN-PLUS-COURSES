@@ -23,6 +23,19 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
         'x-default': `${SITE}/en`,
       },
     },
+    openGraph: {
+      title,
+      description: t('footerDesc'),
+      url: `${SITE}/${locale}`,
+      siteName: 'Learn Plus Courses',
+      locale: locale === 'ar' ? 'ar_AR' : 'en_US',
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description: t('footerDesc'),
+    },
   }
 }
 
